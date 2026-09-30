@@ -17,6 +17,11 @@ import com.dashwroom.f1telemetry.ui.screens.connect.ConnectUiState
 import com.dashwroom.f1telemetry.ui.screens.connect.ConnectWarning
 import com.dashwroom.f1telemetry.ui.screens.settings.SettingsContent
 import com.dashwroom.f1telemetry.ui.screens.settings.SettingsUiState
+import com.dashwroom.f1telemetry.ui.preview.PreviewData
+import com.dashwroom.f1telemetry.ui.screens.overview.OverviewContent
+import com.dashwroom.f1telemetry.ui.screens.race.PitStrategy
+import com.dashwroom.f1telemetry.ui.screens.race.RaceContent
+import com.dashwroom.f1telemetry.ui.screens.race.RaceUiState
 import com.dashwroom.f1telemetry.ui.theme.DashwroomTheme
 import com.github.takahirom.roborazzi.RobolectricDeviceQualifiers
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -87,6 +92,42 @@ class ScreenshotTest {
     @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
     fun overview_waiting_phone() = shoot("overview_waiting_phone") {
         PlaceholderContent("Overview", "Phase 2", TelemetryStatus(), SessionState.Empty, onOpenConnect = {})
+    }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
+    fun overview_phone() = shoot("overview_phone") { Overview() }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun overview_tablet() = shoot("overview_tablet") { Overview() }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
+    fun race_phone() = shoot("race_phone") { Race(selected = -1) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun race_tablet() = shoot("race_tablet") { Race(selected = -1) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun race_tablet_driver_detail() = shoot("race_tablet_driver_detail") { Race(selected = 3) }
+
+    @androidx.compose.runtime.Composable
+    private fun Overview() {
+        val frame = PreviewData.frame()
+        OverviewContent(PreviewData.overview(), PreviewData.hot(), frame, frame, onOpenConnect = {})
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun Race(selected: Int) {
+        val race = PreviewData.race()
+        val state = RaceUiState(
+            receiving = true, info = PreviewData.info(), race = race, history = PreviewData.history(),
+            events = PreviewData.events(), selected = selected, pitAdvice = PitStrategy.compute(race, PreviewData.info()),
+        )
+        RaceContent(state, PreviewData.hot(), PreviewData.frame(), {}, {}, {})
     }
 
     @Test

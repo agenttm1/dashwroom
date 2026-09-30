@@ -2,12 +2,14 @@ package com.dashwroom.f1telemetry.data.settings
 
 import com.dashwroom.f1telemetry.core.model.SourceKind
 import com.dashwroom.f1telemetry.core.protocol.PacketFormat
+import com.dashwroom.f1telemetry.replay.mock.MockSessionMode
 
 /** Everything the user can configure. Immutable snapshot of DataStore. */
 data class AppSettings(
     val udpPort: Int = DEFAULT_PORT,
     val dataSource: SourceKind = SourceKind.LIVE,
     val mockFormat: PacketFormat = PacketFormat.F1_25,
+    val mockSession: MockSessionMode = MockSessionMode.RACE,
     /** Absolute path of the recording to replay; null = most recent. */
     val replayFile: String? = null,
     val themeMode: ThemeMode = ThemeMode.DARK,

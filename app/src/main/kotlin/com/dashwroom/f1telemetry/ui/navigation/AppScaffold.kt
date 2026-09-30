@@ -89,7 +89,14 @@ fun AppScaffold(
                 onStatusClick = { navigate(Destination.CONNECT) },
                 onSettingsClick = { navigate(Destination.SETTINGS) },
             )
-            AppNavHost(navController, start, navigate, Modifier.weight(1f))
+            // The navigation bar handles the bottom inset itself; with a rail or drawer nothing does,
+            // so pad the content or it scrolls underneath the system taskbar / gesture area.
+            val contentInsets = if (compactBar) {
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+            } else {
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.End)
+            }
+            AppNavHost(navController, start, navigate, Modifier.weight(1f).windowInsetsPadding(contentInsets))
         }
     }
 }

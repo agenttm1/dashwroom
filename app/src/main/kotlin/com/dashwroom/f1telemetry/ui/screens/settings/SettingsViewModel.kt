@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dashwroom.f1telemetry.core.model.SourceKind
 import com.dashwroom.f1telemetry.core.protocol.PacketFormat
+import com.dashwroom.f1telemetry.replay.mock.MockSessionMode
 import com.dashwroom.f1telemetry.data.recording.RecordingFile
 import com.dashwroom.f1telemetry.data.recording.RecordingManager
 import com.dashwroom.f1telemetry.data.settings.AppSettings
@@ -49,6 +50,7 @@ class SettingsViewModel @Inject constructor(
     fun setPort(port: Int) = update { setUdpPort(port) }
     fun setSource(source: SourceKind) = update { setDataSource(source) }
     fun setMockFormat(format: PacketFormat) = update { setMockFormat(format) }
+    fun setMockSession(mode: MockSessionMode) = update { setMockSession(mode) }
     fun setReplayFile(path: String?) = update { setReplayFile(path) }
     fun setTheme(mode: ThemeMode) = update { setThemeMode(mode) }
     fun setSpeedUnit(unit: SpeedUnit) = update { setSpeedUnit(unit) }

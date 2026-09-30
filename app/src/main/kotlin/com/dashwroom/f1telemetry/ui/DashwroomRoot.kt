@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,6 +29,8 @@ import com.dashwroom.f1telemetry.data.settings.SettingsRepository
 import com.dashwroom.f1telemetry.ui.components.KeepScreenOn
 import com.dashwroom.f1telemetry.ui.debug.DebugHud
 import com.dashwroom.f1telemetry.ui.debug.JankReporter
+import com.dashwroom.f1telemetry.ui.format.DisplayPrefs
+import com.dashwroom.f1telemetry.ui.format.LocalDisplayPrefs
 import com.dashwroom.f1telemetry.ui.navigation.AppScaffold
 import com.dashwroom.f1telemetry.ui.navigation.Destination
 import com.dashwroom.f1telemetry.ui.theme.DashwroomTheme
@@ -65,15 +68,20 @@ fun DashwroomRoot(
 
     KeepScreenOn(enabled = s.keepScreenOn && status.isReceiving)
 
+    val prefs = remember(s.speedUnit, s.temperatureUnit, s.deltaReference) {
+        DisplayPrefs(s.speedUnit, s.temperatureUnit, s.deltaReference)
+    }
     DashwroomTheme(themeMode = s.themeMode, density = s.uiDensity) {
-        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            AppScaffold(navController = navController, start = startDestination, status = status)
-            if (s.debugHud) {
-                DebugHud(
-                    status = status,
-                    hot = repository.hot,
-                    modifier = Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing),
-                )
+        CompositionLocalProvider(LocalDisplayPrefs provides prefs) {
+            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                AppScaffold(navController = navController, start = startDestination, status = status)
+                if (s.debugHud) {
+                    DebugHud(
+                        status = status,
+                        hot = repository.hot,
+                        modifier = Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing),
+                    )
+                }
             }
         }
     }

@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.dashwroom.f1telemetry.core.model.SourceKind
 import com.dashwroom.f1telemetry.core.protocol.PacketFormat
+import com.dashwroom.f1telemetry.replay.mock.MockSessionMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -27,6 +28,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setUdpPort(port: Int) = edit { it[Keys.PORT] = port.coerceIn(1024, 65_535) }
     suspend fun setDataSource(source: SourceKind) = edit { it[Keys.SOURCE] = source.name }
     suspend fun setMockFormat(format: PacketFormat) = edit { it[Keys.MOCK_FORMAT] = format.name }
+    suspend fun setMockSession(mode: MockSessionMode) = edit { it[Keys.MOCK_SESSION] = mode.name }
     suspend fun setReplayFile(path: String?) = edit { if (path == null) it.remove(Keys.REPLAY_FILE) else it[Keys.REPLAY_FILE] = path }
     suspend fun setThemeMode(mode: ThemeMode) = edit { it[Keys.THEME] = mode.name }
     suspend fun setSpeedUnit(unit: SpeedUnit) = edit { it[Keys.SPEED_UNIT] = unit.name }
@@ -47,6 +49,7 @@ class SettingsRepository @Inject constructor(
         udpPort = p[Keys.PORT] ?: AppSettings.DEFAULT_PORT,
         dataSource = enumOr(p[Keys.SOURCE], SourceKind.LIVE),
         mockFormat = enumOr(p[Keys.MOCK_FORMAT], PacketFormat.F1_25),
+        mockSession = enumOr(p[Keys.MOCK_SESSION], MockSessionMode.RACE),
         replayFile = p[Keys.REPLAY_FILE],
         themeMode = enumOr(p[Keys.THEME], ThemeMode.DARK),
         speedUnit = enumOr(p[Keys.SPEED_UNIT], SpeedUnit.KPH),
@@ -72,6 +75,7 @@ class SettingsRepository @Inject constructor(
         val PORT = intPreferencesKey("udp_port")
         val SOURCE = stringPreferencesKey("data_source")
         val MOCK_FORMAT = stringPreferencesKey("mock_format")
+        val MOCK_SESSION = stringPreferencesKey("mock_session")
         val REPLAY_FILE = stringPreferencesKey("replay_file")
         val THEME = stringPreferencesKey("theme_mode")
         val SPEED_UNIT = stringPreferencesKey("speed_unit")

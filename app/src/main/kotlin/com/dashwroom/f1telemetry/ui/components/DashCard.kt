@@ -1,6 +1,8 @@
 package com.dashwroom.f1telemetry.ui.components
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -14,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun DashCard(
@@ -46,11 +49,12 @@ fun DashCard(
 fun MetricTile(label: String, value: String, modifier: Modifier = Modifier, valueColor: androidx.compose.ui.graphics.Color? = null) {
     Column(modifier) {
         Text(label.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(
+        // Shrinks long values ("Standard", "Overtake") instead of clipping them.
+        BasicText(
             value,
-            style = MaterialTheme.typography.headlineSmall,
-            color = valueColor ?: MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.headlineSmall.copy(color = valueColor ?: MaterialTheme.colorScheme.onSurface),
             maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = MaterialTheme.typography.headlineSmall.fontSize),
         )
     }
 }

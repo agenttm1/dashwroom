@@ -8,6 +8,7 @@ import com.dashwroom.f1telemetry.core.source.PacketSource
 import com.dashwroom.f1telemetry.data.recording.RecordingManager
 import com.dashwroom.f1telemetry.data.settings.SettingsRepository
 import com.dashwroom.f1telemetry.di.ApplicationScope
+import com.dashwroom.f1telemetry.replay.mock.MockSessionMode
 import com.dashwroom.f1telemetry.replay.mock.MockTelemetryEmitter
 import com.dashwroom.f1telemetry.replay.record.ReplaySource
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +26,7 @@ data class SourceConfig(
     val kind: SourceKind,
     val port: Int,
     val mockFormat: PacketFormat,
+    val mockSession: MockSessionMode,
     val replayFile: String?,
 )
 
@@ -52,7 +54,7 @@ class SourceController @Inject constructor(
         if (job != null) return
         job = scope.launch {
             combine(settings.settings, override) { s, forced ->
-                SourceConfig(forced ?: s.dataSource, s.udpPort, s.mockFormat, s.replayFile)
+                SourceConfig(forced ?: s.dataSource, s.udpPort, s.mockFormat, s.mockSession, s.replayFile)
             }.distinctUntilChanged().collect { config -> repository.setSource(create(config)) }
         }
     }
@@ -66,7 +68,7 @@ class SourceController @Inject constructor(
 
     private suspend fun create(config: SourceConfig): PacketSource = when (config.kind) {
         SourceKind.LIVE -> OsUdpSource(config.port)
-        SourceKind.MOCK -> MockTelemetryEmitter(config.mockFormat, rateHz = 60)
+        SourceKind.MOCK -> MockTelemetryEmitter(config.mockFormat, rateHz = 60, mode = config.mockSession)
         SourceKind.REPLAY -> {
             val file = config.replayFile?.let(::File)?.takeIf { it.exists() } ?: recordings.latest()
             if (file == null) UnavailableSource(SourceKind.REPLAY, "Replay", "No recordings yet — record a session from the Connect screen first.")

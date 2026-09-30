@@ -1,10 +1,11 @@
 package com.dashwroom.f1telemetry
 
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
+import android.content.Intent
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ActivityScenario
+import androidx.test.core.app.ApplicationProvider
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import com.dashwroom.f1telemetry.core.TelemetryRepository
 import com.dashwroom.f1telemetry.core.model.ConnectionState
 import com.dashwroom.f1telemetry.core.model.SourceKind
@@ -15,6 +16,7 @@ import com.google.common.truth.Truth.assertThat
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -35,7 +37,8 @@ import javax.inject.Inject
 @Config(application = HiltTestApplication::class, sdk = [36], qualifiers = RobolectricDeviceQualifiers.Pixel7)
 class AppEndToEndTest {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule(order = 1) val compose = createEmptyComposeRule()
+    private var scenario: ActivityScenario<MainActivity>? = null
 
     @Inject lateinit var sourceController: SourceController
     @Inject lateinit var repository: TelemetryRepository
@@ -46,12 +49,21 @@ class AppEndToEndTest {
         // Robolectric doesn't run the foreground service, so drive the controller directly.
         sourceController.overrideSource(SourceKind.MOCK)
         sourceController.start()
+        // Start on Connect: the telemetry screens redraw every frame while data streams, so
+        // Compose is (correctly) never idle there.
+        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java)
+            .putExtra(MainActivity.EXTRA_START_DESTINATION, "connect")
+        scenario = ActivityScenario.launch(intent)
+    }
+
+    @After
+    fun tearDown() {
+        scenario?.close()
     }
 
     @Test
     fun mockTelemetryReachesTheConnectScreen() {
         compose.waitUntil(15_000) { repository.status.value.connection == ConnectionState.CONNECTED && repository.status.value.telemetryHz > 30f }
-        compose.onAllNodesWithText("CONNECTED", substring = true)[0].performClick() // status pill → Connect
         compose.waitUntil(5_000) { compose.onAllNodes(hasText("PACKETS BY TYPE")).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Car Telemetry").assertExists()
         compose.onNodeWithText("MOCK").assertExists()

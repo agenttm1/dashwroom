@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dashwroom.f1telemetry.BuildConfig
 import com.dashwroom.f1telemetry.core.model.SourceKind
 import com.dashwroom.f1telemetry.core.protocol.PacketFormat
+import com.dashwroom.f1telemetry.replay.mock.MockSessionMode
 import com.dashwroom.f1telemetry.data.recording.RecordingFile
 import com.dashwroom.f1telemetry.data.settings.AppSettings
 import com.dashwroom.f1telemetry.data.settings.DeltaReference
@@ -77,6 +78,7 @@ internal fun SettingsContent(state: SettingsUiState, vm: SettingsViewModel?) {
                 Choice("Data source", SourceKind.entries, s.dataSource, { it.name.lowercase().replaceFirstChar(Char::uppercase) }) { vm?.setSource(it) }
                 if (s.dataSource == SourceKind.MOCK) {
                     Choice("Mock packet format", PacketFormat.entries, s.mockFormat, { it.wireValue.toString() }) { vm?.setMockFormat(it) }
+                    Choice("Mock session", MockSessionMode.entries, s.mockSession, { it.label }) { vm?.setMockSession(it) }
                 }
                 if (s.dataSource == SourceKind.REPLAY) RecordingPicker(state.recordings, s.replayFile, vm)
                 PortField(s.udpPort) { vm?.setPort(it) }
