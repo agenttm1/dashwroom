@@ -224,3 +224,17 @@ private fun DrawScope.drawRevLeds(hot: HotTelemetry, colors: DashColors, off: Co
         drawRoundRect(color, topLeft = Offset(left + i * (w + gap), top), size = Size(w, height), cornerRadius = r)
     }
 }
+
+/** The player's running lap time; red while the lap is invalid. */
+@Composable
+fun HotLapTime(hot: HotTelemetry, frame: State<Long>, modifier: Modifier = Modifier, fontSize: Int = 30) {
+    val colors = DashTheme.colors
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val atlas = rememberGlyphAtlas(numberStyle.copy(fontSize = fontSize.sp))
+    val buf = remember { GlyphBuffer() }
+    Canvas(modifier.fillMaxWidth().height((fontSize * 1.5f).dp).clearAndSetSemantics { contentDescription = "Current lap time" }) {
+        frame.value
+        buf.clear().appendLapTime(hot.currentLapTimeMs)
+        atlas.draw(this, buf, 0f, (size.height - atlas.height) / 2f, if (hot.currentLapInvalid) colors.danger else onSurface)
+    }
+}

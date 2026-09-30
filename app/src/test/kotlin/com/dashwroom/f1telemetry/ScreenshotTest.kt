@@ -18,7 +18,13 @@ import com.dashwroom.f1telemetry.ui.screens.connect.ConnectWarning
 import com.dashwroom.f1telemetry.ui.screens.settings.SettingsContent
 import com.dashwroom.f1telemetry.ui.screens.settings.SettingsUiState
 import com.dashwroom.f1telemetry.ui.preview.PreviewData
+import com.dashwroom.f1telemetry.ui.screens.car.CarContent
+import com.dashwroom.f1telemetry.ui.screens.car.CarUiState
 import com.dashwroom.f1telemetry.ui.screens.overview.OverviewContent
+import com.dashwroom.f1telemetry.ui.screens.qualifying.Knockout
+import com.dashwroom.f1telemetry.ui.screens.qualifying.QualifyingContent
+import com.dashwroom.f1telemetry.ui.screens.qualifying.QualifyingUiState
+import kotlinx.collections.immutable.toImmutableList
 import com.dashwroom.f1telemetry.ui.screens.race.PitStrategy
 import com.dashwroom.f1telemetry.ui.screens.race.RaceContent
 import com.dashwroom.f1telemetry.ui.screens.race.RaceUiState
@@ -113,6 +119,31 @@ class ScreenshotTest {
     @Test
     @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
     fun race_tablet_driver_detail() = shoot("race_tablet_driver_detail") { Race(selected = 3) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
+    fun qualifying_phone() = shoot("qualifying_phone") { Qualifying() }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun qualifying_tablet() = shoot("qualifying_tablet") { Qualifying() }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
+    fun car_phone() = shoot("car_phone") { CarContent(CarUiState(true, PreviewData.info(), PreviewData.car()), onOpenConnect = {}) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun car_tablet() = shoot("car_tablet") { CarContent(CarUiState(true, PreviewData.info(), PreviewData.car()), onOpenConnect = {}) }
+
+    @androidx.compose.runtime.Composable
+    private fun Qualifying() {
+        val race = PreviewData.race(race = false)
+        val info = PreviewData.info(race = false).copy(sessionType = 5, sessionTypeName = "Qualifying 1")
+        val ranked = QualifyingUiState.rank(race.drivers)
+        val state = QualifyingUiState(true, info, race, ranked.toImmutableList(), PreviewData.history(), Knockout.of(info, ranked.size))
+        QualifyingContent(state, PreviewData.hot(), PreviewData.frame(), {}, {}, {})
+    }
 
     @androidx.compose.runtime.Composable
     private fun Overview() {
