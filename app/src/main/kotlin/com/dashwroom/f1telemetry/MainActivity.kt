@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.dashwroom.f1telemetry.core.TelemetryRepository
 import com.dashwroom.f1telemetry.core.model.SourceKind
+import com.dashwroom.f1telemetry.replay.mock.MockSessionMode
 import com.dashwroom.f1telemetry.data.settings.SettingsRepository
 import com.dashwroom.f1telemetry.telemetry.SourceController
 import com.dashwroom.f1telemetry.telemetry.UdpTelemetryService
@@ -54,10 +55,15 @@ class MainActivity : ComponentActivity() {
         applyLaunchExtras(intent)
     }
 
-    /** Lets benchmarks (and adb) start straight into a source: `--es source mock`. */
+    /**
+     * Lets benchmarks (and adb) start straight into a source:
+     * `--es source mock [--es session qualifying]`.
+     */
     private fun applyLaunchExtras(intent: Intent?) {
         val source = intent?.getStringExtra(EXTRA_SOURCE) ?: return
-        SourceKind.entries.firstOrNull { it.name.equals(source, ignoreCase = true) }?.let(sourceController::overrideSource)
+        val kind = SourceKind.entries.firstOrNull { it.name.equals(source, ignoreCase = true) } ?: return
+        val session = MockSessionMode.entries.firstOrNull { it.name.equals(intent.getStringExtra(EXTRA_MOCK_SESSION), ignoreCase = true) }
+        sourceController.overrideSource(kind, session)
     }
 
     private fun requestNotificationPermission() {
@@ -68,6 +74,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SOURCE = "source"
+        const val EXTRA_MOCK_SESSION = "session"
         const val EXTRA_START_DESTINATION = "start"
     }
 }

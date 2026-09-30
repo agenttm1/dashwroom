@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -90,41 +91,44 @@ fun QualifyingContent(
     modifier: Modifier = Modifier,
     layout: PaneLayoutInfo = rememberPaneLayout(),
 ) {
-    if (!state.hasData) {
-        WaitingForTelemetry(
-            title = "Waiting for qualifying",
-            message = "The leaderboard fills in as cars set lap times. Works in practice and time trial too.",
-            actionLabel = "Connection setup",
-            onAction = onOpenConnect,
-            modifier = modifier,
-        )
-        return
+    // Fade from the waiting skeleton to the real content when data starts flowing.
+    Crossfade(state.hasData, modifier, label = "data") { ready ->
+        if (!ready) {
+            WaitingForTelemetry(
+                title = "Waiting for qualifying",
+                message = "The leaderboard fills in as cars set lap times. Works in practice and time trial too.",
+                actionLabel = "Connection setup",
+                onAction = onOpenConnect,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            val selectedDriver = state.race.driver(state.selected)
+            val player = state.race.player
+            ListDetail(
+                hasSelection = selectedDriver != null,
+                onDismissDetail = onClearSelection,
+                layout = layout,
+                modifier = Modifier.fillMaxSize(),
+                list = {
+                    Column(Modifier.fillMaxSize()) {
+                        LivePanel(hot, frame, Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp))
+                        Leaderboard(state, onSelect, Modifier.weight(1f))
+                    }
+                },
+                detail = {
+                    selectedDriver?.let {
+                        DriverDetail(it, state.history, state.race.bests, state.info, player, onClose = if (layout.mode == PaneMode.SIDE_BY_SIDE) onClearSelection else null)
+                    }
+                },
+                idleDetail = {
+                    Column(Modifier.fillMaxSize().padding(top = 8.dp, end = 12.dp)) {
+                        SessionHeader(state.info, state.race.leaderLap, Modifier.fillMaxWidth().padding(bottom = 4.dp))
+                        if (player != null) DriverDetail(player, state.history, state.race.bests, state.info, null, onClose = null, modifier = Modifier.weight(1f))
+                    }
+                },
+            )
+        }
     }
-    val selectedDriver = state.race.driver(state.selected)
-    val player = state.race.player
-    ListDetail(
-        hasSelection = selectedDriver != null,
-        onDismissDetail = onClearSelection,
-        layout = layout,
-        modifier = modifier,
-        list = {
-            Column(Modifier.fillMaxSize()) {
-                LivePanel(hot, frame, Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp))
-                Leaderboard(state, onSelect, Modifier.weight(1f))
-            }
-        },
-        detail = {
-            selectedDriver?.let {
-                DriverDetail(it, state.history, state.race.bests, state.info, player, onClose = if (layout.mode == PaneMode.SIDE_BY_SIDE) onClearSelection else null)
-            }
-        },
-        idleDetail = {
-            Column(Modifier.fillMaxSize().padding(top = 8.dp, end = 12.dp)) {
-                SessionHeader(state.info, state.race.leaderLap, Modifier.fillMaxWidth().padding(bottom = 4.dp))
-                if (player != null) DriverDetail(player, state.history, state.race.bests, state.info, null, onClose = null, modifier = Modifier.weight(1f))
-            }
-        },
-    )
 }
 
 @Composable
@@ -240,7 +244,7 @@ private fun LeaderRow(
     Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .padding(vertical = 1.dp)
             .background(bg, RoundedCornerShape(8.dp))
             .then(if (selected) Modifier.border(BorderStroke(2.dp, scheme.secondary), RoundedCornerShape(8.dp)) else Modifier)

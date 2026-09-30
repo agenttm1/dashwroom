@@ -1,5 +1,6 @@
 package com.dashwroom.f1telemetry.ui.screens.overview
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,51 +85,54 @@ fun OverviewContent(
     onOpenConnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (!state.hasData) {
-        WaitingForTelemetry(
-            title = "Waiting for telemetry",
-            message = "Start a session in F1 25 with UDP telemetry pointed at this device. The overview fills in as soon as packets arrive.",
-            actionLabel = "Connection setup",
-            onAction = onOpenConnect,
-            modifier = modifier,
-        )
-        return
-    }
-    LazyVerticalStaggeredGrid(
-        columns = StaggeredGridCells.Adaptive(300.dp),
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalItemSpacing = 12.dp,
-    ) {
-        item(key = "header", span = StaggeredGridItemSpan.FullLine) {
-            SessionHeader(state.info, state.race.leaderLap)
-        }
-        item(key = "position") { PositionCard(state.player, state.ahead, state.behind, state.race.bests) }
-        item(key = "delta") {
-            DashCard(title = "Live delta · ${LocalDisplayPrefs.current.deltaReference.label}") {
-                HotDeltaBar(hot, frame, LocalDisplayPrefs.current.deltaReference)
-            }
-        }
-        item(key = "map") {
-            DashCard(title = "Track") {
-                TrackMap(state.outline, hot, mapFrame, state.mapCars, Modifier.fillMaxWidth().aspectRatio(1.25f))
-            }
-        }
-        item(key = "tyres") { TyresCard(state.car) }
-        item(key = "fuel") { FuelCard(state.car) }
-        item(key = "ers") {
-            DashCard(title = "ERS") {
-                HotErsBar(hot, frame)
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    MetricTile("Mode", ersModeName(state.car.ersDeployMode), Modifier.weight(1f))
-                    MetricTile("Harvested", Fmt.megajoules(state.car.ersHarvestedThisLapJ), Modifier.weight(1f))
-                    MetricTile("Deployed", Fmt.megajoules(state.car.ersDeployedThisLapJ), Modifier.weight(1f))
+    // Fade from the waiting skeleton to the real content when data starts flowing.
+    Crossfade(state.hasData, modifier, label = "data") { ready ->
+        if (!ready) {
+            WaitingForTelemetry(
+                title = "Waiting for telemetry",
+                message = "Start a session in F1 25 with UDP telemetry pointed at this device. The overview fills in as soon as packets arrive.",
+                actionLabel = "Connection setup",
+                onAction = onOpenConnect,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Adaptive(300.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalItemSpacing = 12.dp,
+            ) {
+                item(key = "header", span = StaggeredGridItemSpan.FullLine) {
+                    SessionHeader(state.info, state.race.leaderLap)
                 }
+                item(key = "position") { PositionCard(state.player, state.ahead, state.behind, state.race.bests) }
+                item(key = "delta") {
+                    DashCard(title = "Live delta · ${LocalDisplayPrefs.current.deltaReference.label}") {
+                        HotDeltaBar(hot, frame, LocalDisplayPrefs.current.deltaReference)
+                    }
+                }
+                item(key = "map") {
+                    DashCard(title = "Track") {
+                        TrackMap(state.outline, hot, mapFrame, state.mapCars, Modifier.fillMaxWidth().aspectRatio(1.25f))
+                    }
+                }
+                item(key = "tyres") { TyresCard(state.car) }
+                item(key = "fuel") { FuelCard(state.car) }
+                item(key = "ers") {
+                    DashCard(title = "ERS") {
+                        HotErsBar(hot, frame)
+                        Spacer(Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            MetricTile("Mode", ersModeName(state.car.ersDeployMode), Modifier.weight(1f))
+                            MetricTile("Harvested", Fmt.megajoules(state.car.ersHarvestedThisLapJ), Modifier.weight(1f))
+                            MetricTile("Deployed", Fmt.megajoules(state.car.ersDeployedThisLapJ), Modifier.weight(1f))
+                        }
+                    }
+                }
+                item(key = "damage") { DamageCard(state.car) }
             }
         }
-        item(key = "damage") { DamageCard(state.car) }
     }
 }
 

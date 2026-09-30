@@ -5,8 +5,8 @@ import androidx.benchmark.macro.MacrobenchmarkScope
 
 const val TARGET_PACKAGE = "com.dashwroom.f1telemetry"
 
-/** Cold-launches the app straight into [destination] with the 60 Hz mock race as the source. */
-fun MacrobenchmarkScope.launchWithMock(destination: String) {
+/** Launches the app straight into [destination] with the 60 Hz mock ([session] = race or qualifying) as the source. */
+fun MacrobenchmarkScope.launchWithMock(destination: String, session: String = "race") {
     startActivityAndWait(
         Intent().apply {
             setPackage(TARGET_PACKAGE)
@@ -14,6 +14,7 @@ fun MacrobenchmarkScope.launchWithMock(destination: String) {
             addCategory(Intent.CATEGORY_LAUNCHER)
             putExtra("source", "mock")
             putExtra("start", destination)
+            putExtra("session", session)
         },
     )
 }

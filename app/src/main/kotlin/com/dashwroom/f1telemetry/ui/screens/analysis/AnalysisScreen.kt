@@ -2,6 +2,7 @@ package com.dashwroom.f1telemetry.ui.screens.analysis
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -93,38 +94,41 @@ fun AnalysisContent(
     modifier: Modifier = Modifier,
     layout: PaneLayoutInfo = rememberPaneLayout(),
 ) {
-    if (state.sessions.isEmpty()) {
-        WaitingForTelemetry(
-            title = "No laps yet",
-            message = "Complete a lap in F1 25 and its speed, throttle, brake, gear and steering traces appear here. Every lap is saved for later comparison.",
-            actionLabel = "Connection setup",
-            onAction = onOpenConnect,
-            modifier = modifier,
-        )
-        return
-    }
-    val chart: @Composable (Modifier) -> Unit = { m ->
-        DashCard(m, title = "Telemetry") { TraceChart(state.traceA, state.traceB, Modifier.fillMaxSize()) }
-    }
-    val table: @Composable (Modifier) -> Unit = { m ->
-        Column(m) {
-            SessionPicker(state, onSelectSession, onDeleteSession)
-            Spacer(Modifier.size(8.dp))
-            LapTable(state, onSelectLap, onCompareLap, Modifier.weight(1f))
-        }
-    }
-    if (layout.mode == PaneMode.SIDE_BY_SIDE) {
-        TwoPane(
-            first = { table(Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, bottom = 12.dp)) },
-            second = { chart(Modifier.fillMaxSize().padding(top = 12.dp, end = 12.dp, bottom = 12.dp)) },
-            modifier = modifier.fillMaxSize(),
-            firstWeight = 0.42f,
-            hinge = layout.hinge,
-        )
-    } else {
-        Column(modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            chart(Modifier.fillMaxWidth().weight(1.25f))
-            table(Modifier.fillMaxWidth().weight(1f))
+    // Fade from the waiting skeleton to the real content when data starts flowing.
+    Crossfade(state.sessions.isNotEmpty(), modifier, label = "data") { ready ->
+        if (!ready) {
+            WaitingForTelemetry(
+                title = "No laps yet",
+                message = "Complete a lap in F1 25 and its speed, throttle, brake, gear and steering traces appear here. Every lap is saved for later comparison.",
+                actionLabel = "Connection setup",
+                onAction = onOpenConnect,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            val chart: @Composable (Modifier) -> Unit = { m ->
+                DashCard(m, title = "Telemetry") { TraceChart(state.traceA, state.traceB, Modifier.fillMaxSize()) }
+            }
+            val table: @Composable (Modifier) -> Unit = { m ->
+                Column(m) {
+                    SessionPicker(state, onSelectSession, onDeleteSession)
+                    Spacer(Modifier.size(8.dp))
+                    LapTable(state, onSelectLap, onCompareLap, Modifier.weight(1f))
+                }
+            }
+            if (layout.mode == PaneMode.SIDE_BY_SIDE) {
+                TwoPane(
+                    first = { table(Modifier.fillMaxSize().padding(start = 12.dp, top = 12.dp, bottom = 12.dp)) },
+                    second = { chart(Modifier.fillMaxSize().padding(top = 12.dp, end = 12.dp, bottom = 12.dp)) },
+                    modifier = Modifier.fillMaxSize(),
+                    firstWeight = 0.42f,
+                    hinge = layout.hinge,
+                )
+            } else {
+                Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    chart(Modifier.fillMaxWidth().weight(1.25f))
+                    table(Modifier.fillMaxWidth().weight(1f))
+                }
+            }
         }
     }
 }
@@ -199,7 +203,7 @@ private fun LapTable(state: AnalysisUiState, onSelect: (Int) -> Unit, onCompare:
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 48.dp)
                         .background(bg, RoundedCornerShape(8.dp))
                         .clickable(enabled = lap.hasTrace) { onSelect(lap.lap) }
                         .semantics(mergeDescendants = true) {

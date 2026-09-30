@@ -1,6 +1,7 @@
 package com.dashwroom.f1telemetry.ui.screens.car
 
 import androidx.compose.foundation.background
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -80,37 +81,40 @@ fun CarContent(
     modifier: Modifier = Modifier,
     layout: PaneLayoutInfo = rememberPaneLayout(),
 ) {
-    if (!state.hasData) {
-        WaitingForTelemetry(
-            title = "Waiting for car data",
-            message = "Tyre temperatures, wear and damage appear once F1 25 sends car telemetry. Other cars' data needs their telemetry set to public.",
-            actionLabel = "Connection setup",
-            onAction = onOpenConnect,
-            modifier = modifier,
-        )
-        return
-    }
-    val car = state.car
-    if (layout.mode == PaneMode.SIDE_BY_SIDE) {
-        TwoPane(
-            first = { Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { TyresPanel(car) } },
-            second = {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    // Fade from the waiting skeleton to the real content when data starts flowing.
+    Crossfade(state.hasData, modifier, label = "data") { ready ->
+        if (!ready) {
+            WaitingForTelemetry(
+                title = "Waiting for car data",
+                message = "Tyre temperatures, wear and damage appear once F1 25 sends car telemetry. Other cars' data needs their telemetry set to public.",
+                actionLabel = "Connection setup",
+                onAction = onOpenConnect,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            val car = state.car
+            if (layout.mode == PaneMode.SIDE_BY_SIDE) {
+                TwoPane(
+                    first = { Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp)) { TyresPanel(car) } },
+                    second = {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SystemsCard(car)
+                            DamageCard(car)
+                            TyreSetsCard(car)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    firstWeight = 0.52f,
+                    hinge = layout.hinge,
+                )
+            } else {
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TyresPanel(car)
                     SystemsCard(car)
                     DamageCard(car)
                     TyreSetsCard(car)
                 }
-            },
-            modifier = modifier.fillMaxSize(),
-            firstWeight = 0.52f,
-            hinge = layout.hinge,
-        )
-    } else {
-        Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TyresPanel(car)
-            SystemsCard(car)
-            DamageCard(car)
-            TyreSetsCard(car)
+            }
         }
     }
 }

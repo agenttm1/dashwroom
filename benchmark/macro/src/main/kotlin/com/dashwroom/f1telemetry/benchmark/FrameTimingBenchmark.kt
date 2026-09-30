@@ -14,22 +14,28 @@ import org.junit.runner.RunWith
  * Frame timing while the mock emitter streams at 60 Hz, 30 s per iteration.
  * Acceptance (addendum B): zero janky frames, P99 frame duration < 16 ms.
  *
- * Phase 1 measures the Connect screen (live diagnostics); Phase 2 adds the Race screen, the
- * real target of the criterion, by passing "race".
+ * The Race screen is the real target of the criterion (full-rate top strip + 20-car tower with
+ * position changes); the others guard against regressions on the busiest remaining screens.
  */
 @RunWith(AndroidJUnit4::class)
 class FrameTimingBenchmark {
     @get:Rule val rule = MacrobenchmarkRule()
 
+    @Test fun raceScreenUnderMock60Hz() = measure("race")
+
+    @Test fun overviewScreenUnderMock60Hz() = measure("overview")
+
+    @Test fun qualifyingScreenUnderMock60Hz() = measure("qualifying", session = "qualifying")
+
     @Test fun connectScreenUnderMock60Hz() = measure("connect")
 
-    private fun measure(destination: String) = rule.measureRepeated(
+    private fun measure(destination: String, session: String = "race") = rule.measureRepeated(
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
         compilationMode = CompilationMode.Partial(BaselineProfileMode.UseIfAvailable),
         startupMode = StartupMode.WARM,
         iterations = 3,
-        setupBlock = { launchWithMock(destination) },
+        setupBlock = { launchWithMock(destination, session) },
     ) {
         Thread.sleep(RUN_MS)
     }

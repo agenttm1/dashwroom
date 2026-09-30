@@ -43,9 +43,11 @@ class SourceController @Inject constructor(
 ) {
     /** Process-lifetime override, e.g. the macrobenchmark launching the app straight into MOCK. */
     private val override = MutableStateFlow<SourceKind?>(null)
+    private val mockSessionOverride = MutableStateFlow<MockSessionMode?>(null)
     private var job: Job? = null
 
-    fun overrideSource(kind: SourceKind?) {
+    fun overrideSource(kind: SourceKind?, mockSession: MockSessionMode? = null) {
+        mockSessionOverride.value = mockSession
         override.value = kind
     }
 
@@ -53,8 +55,8 @@ class SourceController @Inject constructor(
     fun start() {
         if (job != null) return
         job = scope.launch {
-            combine(settings.settings, override) { s, forced ->
-                SourceConfig(forced ?: s.dataSource, s.udpPort, s.mockFormat, s.mockSession, s.replayFile)
+            combine(settings.settings, override, mockSessionOverride) { s, forced, forcedSession ->
+                SourceConfig(forced ?: s.dataSource, s.udpPort, s.mockFormat, forcedSession ?: s.mockSession, s.replayFile)
             }.distinctUntilChanged().collect { config -> repository.setSource(create(config)) }
         }
     }

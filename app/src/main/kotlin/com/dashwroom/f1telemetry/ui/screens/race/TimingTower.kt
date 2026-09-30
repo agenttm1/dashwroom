@@ -1,5 +1,7 @@
 package com.dashwroom.f1telemetry.ui.screens.race
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,9 +23,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -124,12 +134,30 @@ private fun TowerRow(
         else -> Color.Transparent
     }
     val numberStyle = MaterialTheme.typography.bodyLarge
+    // Brief green / red wash when the car gains or loses a place. The animated value is read only
+    // in the draw phase, so the flash costs no recomposition.
+    val flash = remember { Animatable(0f) }
+    var lastPosition by remember { mutableIntStateOf(d.position) }
+    var gained by remember { mutableStateOf(true) }
+    LaunchedEffect(d.position) {
+        if (lastPosition > 0 && d.position > 0 && d.position != lastPosition) {
+            gained = d.position < lastPosition
+            flash.snapTo(1f)
+            flash.animateTo(0f, tween(durationMillis = 1_500))
+        }
+        lastPosition = d.position
+    }
+    val flashColor = if (gained) colors.personalBest else colors.danger
     Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 44.dp)
+            .heightIn(min = 48.dp)
             .padding(vertical = 1.dp)
             .background(bg, RoundedCornerShape(8.dp))
+            .drawBehind {
+                val a = flash.value
+                if (a > 0f) drawRoundRect(flashColor.copy(alpha = 0.35f * a), cornerRadius = CornerRadius(8.dp.toPx()))
+            }
             .then(if (selected) Modifier.border(BorderStroke(2.dp, scheme.secondary), RoundedCornerShape(8.dp)) else Modifier)
             .clickable(onClick = onClick)
             .semantics(mergeDescendants = true) {

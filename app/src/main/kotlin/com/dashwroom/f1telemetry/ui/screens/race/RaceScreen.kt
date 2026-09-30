@@ -1,7 +1,10 @@
 package com.dashwroom.f1telemetry.ui.screens.race
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +31,7 @@ import com.dashwroom.f1telemetry.core.state.HotTelemetry
 import com.dashwroom.f1telemetry.ui.adaptive.ListDetail
 import com.dashwroom.f1telemetry.ui.adaptive.PaneLayoutInfo
 import com.dashwroom.f1telemetry.ui.adaptive.PaneMode
+import com.dashwroom.f1telemetry.ui.adaptive.TwoPane
 import com.dashwroom.f1telemetry.ui.adaptive.rememberPaneLayout
 import com.dashwroom.f1telemetry.ui.components.WaitingForTelemetry
 import com.dashwroom.f1telemetry.ui.format.LocalDisplayPrefs
@@ -60,46 +64,77 @@ fun RaceContent(
     modifier: Modifier = Modifier,
     layout: PaneLayoutInfo = rememberPaneLayout(),
 ) {
-    if (!state.hasData) {
-        WaitingForTelemetry(
-            title = "Waiting for the grid",
-            message = "The timing tower appears as soon as lap data arrives from F1 25.",
-            actionLabel = "Connection setup",
-            onAction = onOpenConnect,
-            modifier = modifier,
-        )
-        return
-    }
-    val selectedDriver = state.race.driver(state.selected)
-    Column(modifier.fillMaxSize()) {
-        RaceTopStrip(hot, frame, LocalDisplayPrefs.current.deltaReference)
-        ListDetail(
-            hasSelection = selectedDriver != null,
-            onDismissDetail = onClearSelection,
-            layout = layout,
-            list = {
-                if (layout.mode == PaneMode.SIDE_BY_SIDE) {
-                    TimingTower(state.race.drivers, state.race.bests, state.selected, onSelect)
-                } else {
-                    CompactRaceTabs(state, onSelect)
-                }
-            },
-            detail = {
-                selectedDriver?.let {
-                    DriverDetail(
-                        it, state.history, state.race.bests, state.info, state.race.player,
-                        onClose = if (layout.mode == PaneMode.SIDE_BY_SIDE) onClearSelection else null,
-                    )
-                }
-            },
-            idleDetail = {
-                Column(Modifier.fillMaxSize().padding(top = 4.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    PitHelperCard(state.pitAdvice, Modifier.fillMaxWidth())
-                    EventFeed(state.events, Modifier.fillMaxWidth().weight(1f))
-                }
-            },
-            modifier = Modifier.weight(1f),
-        )
+    // Fade from the waiting skeleton to the real content when data starts flowing.
+    Crossfade(state.hasData, modifier, label = "data") { ready ->
+        if (!ready) {
+            WaitingForTelemetry(
+                title = "Waiting for the grid",
+                message = "The timing tower appears as soon as lap data arrives from F1 25.",
+                actionLabel = "Connection setup",
+                onAction = onOpenConnect,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
+            val selectedDriver = state.race.driver(state.selected)
+            val hinge = layout.hinge
+            if (hinge != null && !hinge.vertical) {
+                // Tabletop posture: live strip, strategy and race control on the upright half,
+                // the tower on the flat half; a driver still opens in a sheet.
+                TwoPane(
+                    first = {
+                        Column(Modifier.fillMaxSize()) {
+                            RaceTopStrip(hot, frame, LocalDisplayPrefs.current.deltaReference)
+                            Row(Modifier.fillMaxSize().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                PitHelperCard(state.pitAdvice, Modifier.weight(1f))
+                                EventFeed(state.events, Modifier.weight(1f).fillMaxHeight())
+                            }
+                        }
+                    },
+                    second = {
+                        ListDetail(
+                            hasSelection = selectedDriver != null,
+                            onDismissDetail = onClearSelection,
+                            layout = PaneLayoutInfo(PaneMode.SINGLE, null),
+                            list = { TimingTower(state.race.drivers, state.race.bests, state.selected, onSelect) },
+                            detail = { selectedDriver?.let { DriverDetail(it, state.history, state.race.bests, state.info, state.race.player, onClose = null) } },
+                        )
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    hinge = hinge,
+                )
+                return@Crossfade
+            }
+            Column(Modifier.fillMaxSize()) {
+                RaceTopStrip(hot, frame, LocalDisplayPrefs.current.deltaReference)
+                ListDetail(
+                    hasSelection = selectedDriver != null,
+                    onDismissDetail = onClearSelection,
+                    layout = layout,
+                    list = {
+                        if (layout.mode == PaneMode.SIDE_BY_SIDE) {
+                            TimingTower(state.race.drivers, state.race.bests, state.selected, onSelect)
+                        } else {
+                            CompactRaceTabs(state, onSelect)
+                        }
+                    },
+                    detail = {
+                        selectedDriver?.let {
+                            DriverDetail(
+                                it, state.history, state.race.bests, state.info, state.race.player,
+                                onClose = if (layout.mode == PaneMode.SIDE_BY_SIDE) onClearSelection else null,
+                            )
+                        }
+                    },
+                    idleDetail = {
+                        Column(Modifier.fillMaxSize().padding(top = 4.dp, end = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            PitHelperCard(state.pitAdvice, Modifier.fillMaxWidth())
+                            EventFeed(state.events, Modifier.fillMaxWidth().weight(1f))
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
     }
 }
 

@@ -5,13 +5,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.dashwroom.f1telemetry.core.model.ConnectionState
 import com.dashwroom.f1telemetry.core.model.GameInfo
 import com.dashwroom.f1telemetry.core.model.PacketTypeStats
-import com.dashwroom.f1telemetry.core.model.SessionState
 import com.dashwroom.f1telemetry.core.model.SourceKind
 import com.dashwroom.f1telemetry.core.model.TelemetryStatus
 import com.dashwroom.f1telemetry.core.protocol.PacketFormat
 import com.dashwroom.f1telemetry.data.network.NetworkInfo
 import com.dashwroom.f1telemetry.data.settings.AppSettings
-import com.dashwroom.f1telemetry.ui.screens.PlaceholderContent
 import com.dashwroom.f1telemetry.ui.screens.connect.ConnectContent
 import com.dashwroom.f1telemetry.ui.screens.connect.ConnectUiState
 import com.dashwroom.f1telemetry.ui.screens.connect.ConnectWarning
@@ -22,6 +20,7 @@ import com.dashwroom.f1telemetry.ui.screens.analysis.AnalysisContent
 import com.dashwroom.f1telemetry.ui.screens.car.CarContent
 import com.dashwroom.f1telemetry.ui.screens.car.CarUiState
 import com.dashwroom.f1telemetry.ui.screens.overview.OverviewContent
+import com.dashwroom.f1telemetry.ui.screens.overview.OverviewUiState
 import com.dashwroom.f1telemetry.ui.screens.qualifying.Knockout
 import com.dashwroom.f1telemetry.ui.screens.qualifying.QualifyingContent
 import com.dashwroom.f1telemetry.ui.screens.qualifying.QualifyingUiState
@@ -98,7 +97,8 @@ class ScreenshotTest {
     @Test
     @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
     fun overview_waiting_phone() = shoot("overview_waiting_phone") {
-        PlaceholderContent("Overview", "Phase 2", TelemetryStatus(), SessionState.Empty, onOpenConnect = {})
+        val frame = PreviewData.frame()
+        OverviewContent(OverviewUiState(), PreviewData.hot(), frame, frame, onOpenConnect = {})
     }
 
     @Test
