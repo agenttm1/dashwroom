@@ -39,14 +39,14 @@ class ParserRobustnessTest {
     }
 
     @Test
-    fun `car telemetry 2 is unknown in 2025 and counted but not decoded in 2026`() {
+    fun `car telemetry 2 is unknown in 2025 and decoded in 2026`() {
         val b25 = le(269).putShort(0, 2025.toShort()).put(6, PacketId.CAR_TELEMETRY_2.toByte())
         assertThat(parser.parse(b25, 269)).isNull()
         assertThat(parser.lastResult).isEqualTo(ParseResult.UNKNOWN_PACKET_ID)
 
         val b26 = blankPacket(PacketFormat.F1_25_SEASON_2026, PacketId.CAR_TELEMETRY_2)
-        assertThat(parser.parse(b26, b26.capacity())).isNull()
-        assertThat(parser.lastResult).isEqualTo(ParseResult.NOT_DECODED)
+        assertThat(parser.parse(b26, b26.capacity())).isNotNull()
+        assertThat(parser.lastResult).isEqualTo(ParseResult.OK)
     }
 
     @Test
@@ -57,10 +57,8 @@ class ParserRobustnessTest {
     }
 
     @Test
-    fun `later-phase packets with valid sizes are skipped gracefully`() {
-        for (id in listOf(PacketId.CAR_SETUPS, PacketId.CAR_DAMAGE, PacketId.SESSION_HISTORY, PacketId.TYRE_SETS,
-            PacketId.MOTION_EX, PacketId.LAP_POSITIONS, PacketId.FINAL_CLASSIFICATION, PacketId.LOBBY_INFO,
-            PacketId.TIME_TRIAL)) {
+    fun `packets the app doesn't use are counted and skipped gracefully`() {
+        for (id in listOf(PacketId.CAR_SETUPS, PacketId.LOBBY_INFO, PacketId.TIME_TRIAL)) {
             for (format in PacketFormat.entries) {
                 val b = blankPacket(format, id)
                 assertThat(parser.parse(b, b.capacity())).isNull()

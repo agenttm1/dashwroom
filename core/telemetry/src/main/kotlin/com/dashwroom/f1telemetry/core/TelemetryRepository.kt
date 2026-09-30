@@ -6,13 +6,20 @@ import com.dashwroom.f1telemetry.core.ingest.TelemetryPipeline
 import com.dashwroom.f1telemetry.core.model.ConnectionState
 import com.dashwroom.f1telemetry.core.model.GameInfo
 import com.dashwroom.f1telemetry.core.model.PacketTypeStats
+import com.dashwroom.f1telemetry.core.model.HistoryState
+import com.dashwroom.f1telemetry.core.model.LapTrace
+import com.dashwroom.f1telemetry.core.model.PlayerCarState
+import com.dashwroom.f1telemetry.core.model.RaceEvent
+import com.dashwroom.f1telemetry.core.model.RaceState
 import com.dashwroom.f1telemetry.core.model.SessionState
+import com.dashwroom.f1telemetry.core.model.TrackOutline
 import com.dashwroom.f1telemetry.core.model.TelemetryStatus
 import com.dashwroom.f1telemetry.core.protocol.PacketFormat
 import com.dashwroom.f1telemetry.core.protocol.PacketId
 import com.dashwroom.f1telemetry.core.source.PacketSource
 import com.dashwroom.f1telemetry.core.state.HotTelemetry
 import com.dashwroom.f1telemetry.core.state.TelemetryStore
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -20,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
@@ -49,6 +57,17 @@ class TelemetryRepository(
     private val pipeline = TelemetryPipeline(stats, store)
 
     val session: StateFlow<SessionState> = store.session
+    val race: StateFlow<RaceState> = store.race
+    val player: StateFlow<PlayerCarState> = store.player
+    val history: StateFlow<HistoryState> = store.history
+    val events: StateFlow<ImmutableList<RaceEvent>> = store.events
+    val trackOutline: StateFlow<TrackOutline?> = store.trackOutline
+
+    /** The player's completed-lap traces in the current session. */
+    val laps: StateFlow<ImmutableList<LapTrace>> = store.laps
+
+    /** Emits each player lap as it completes (for archiving). */
+    val completedLaps: SharedFlow<LapTrace> = store.completedLaps
 
     private val _status = MutableStateFlow(TelemetryStatus())
     val status: StateFlow<TelemetryStatus> = _status.asStateFlow()

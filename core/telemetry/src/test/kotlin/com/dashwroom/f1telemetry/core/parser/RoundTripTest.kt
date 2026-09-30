@@ -49,6 +49,23 @@ class RoundTripTest(private val format: PacketFormat) {
 
     @Test fun carStatus() = repeat(20) { roundTrip(fixtures.status(format)) }
 
+    @Test fun finalClassification() = repeat(20) { roundTrip(fixtures.finalClassification(format)) }
+
+    @Test fun carDamage() = repeat(20) { roundTrip(fixtures.damage(format)) }
+
+    @Test fun sessionHistory() = repeat(20) { roundTrip(fixtures.sessionHistory(format)) }
+
+    @Test fun tyreSets() = repeat(20) { roundTrip(fixtures.tyreSets(format)) }
+
+    @Test fun motionEx() = repeat(20) { roundTrip(fixtures.motionEx(format)) }
+
+    @Test fun lapPositions() = repeat(20) { roundTrip(fixtures.lapPositions(format)) }
+
+    @Test
+    fun carTelemetry2() {
+        if (format == PacketFormat.F1_25_SEASON_2026) repeat(20) { roundTrip(fixtures.telemetry2(format)) }
+    }
+
     @Test
     fun everyEventCode() {
         val codes = listOf(

@@ -48,6 +48,30 @@ class MockCars(val count: Int) {
     val lapNoise = FloatArray(count)
     val laneOffset = FloatArray(count)
 
+    /** LapData driver status: 0 garage, 1 flying lap, 2 in lap, 3 out lap, 4 on track. */
+    val driverStatus = IntArray(count) { 4 }
+    val lapInvalid = BooleanArray(count)
+    val garageUntil = FloatArray(count)
+    val flyingLapsLeft = IntArray(count)
+
+    // Session history (per car, per lap) and tyre stints.
+    val historyLaps = IntArray(count)
+    val historyLapMs = LongArray(count * MAX_LAPS)
+    val historyS1 = IntArray(count * MAX_LAPS)
+    val historyS2 = IntArray(count * MAX_LAPS)
+    val historyS3 = IntArray(count * MAX_LAPS)
+    val historyValid = BooleanArray(count * MAX_LAPS)
+    val stintCount = IntArray(count)
+    val stintEndLap = IntArray(count * MAX_STINTS)
+    val stintVisual = IntArray(count * MAX_STINTS)
+    val stintActual = IntArray(count * MAX_STINTS)
+    val lapStartPosition = IntArray(count * MAX_LAPS)
+
+    // Damage and wear.
+    val frontLeftWingDamage = IntArray(count)
+    val floorDamage = IntArray(count)
+    val engineWear = FloatArray(count)
+
     // Timing checkpoints, two laps deep (indexed by lap parity), for realistic interval timing.
     val lastCheckpoint = IntArray(count)
     val checkpointTime = FloatArray(count * 2 * CHECKPOINTS)
@@ -57,5 +81,7 @@ class MockCars(val count: Int) {
 
     companion object {
         const val CHECKPOINTS = 64
+        const val MAX_LAPS = 100
+        const val MAX_STINTS = 8
     }
 }

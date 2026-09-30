@@ -241,3 +241,114 @@ class GoldenOffsetTest {
         }
     }
 }
+
+class GoldenOffsetPhase3Test {
+    private val parser = PacketParser()
+
+    private fun parse(buf: ByteBuffer) = parser.parse(buf, buf.capacity()).also {
+        assertThat(parser.lastResult).isEqualTo(ParseResult.OK)
+    }
+
+    @Test
+    fun `car damage - 46 byte stride, engine wear block`() {
+        val b = blankPacket(F1_25_SEASON_2026, PacketId.CAR_DAMAGE)
+        val car = 29 + 23 * 46
+        b.putFloat(car + 8, 37.5f) // m_tyresWear[FL]
+        b.put(car + 28, 12) // m_frontLeftWingDamage
+        b.put(car + 31, 44) // m_floorDamage
+        b.put(car + 41, 23) // m_engineICEWear
+        b.put(car + 45, 1) // m_engineSeized
+        val c = (parse(b) as com.dashwroom.f1telemetry.core.packet.CarDamagePacket).cars[23]
+        assertThat(c.tyresWear[2]).isEqualTo(37.5f)
+        assertThat(c.frontLeftWingDamage).isEqualTo(12)
+        assertThat(c.floorDamage).isEqualTo(44)
+        assertThat(c.engineIceWear).isEqualTo(23)
+        assertThat(c.engineSeized).isTrue()
+    }
+
+    @Test
+    fun `session history - 14 byte laps from 36, stints from 1436`() {
+        val b = blankPacket(F1_25, PacketId.SESSION_HISTORY)
+        b.put(29, 7); b.put(30, 12); b.put(31, 2); b.put(32, 9) // carIdx, numLaps, stints, best lap
+        val lap9 = 36 + 8 * 14
+        b.putInt(lap9, 89_456) // m_lapTimeInMS
+        b.putShort(lap9 + 7, 31_250); b.put(lap9 + 9, 0) // sector 2 = 31.250 s
+        b.put(lap9 + 13, 0x0F) // all valid
+        b.put(1436 + 3, 20); b.put(1436 + 5, 18) // stint 1: ends lap 20, visual hard
+        val p = parse(b) as com.dashwroom.f1telemetry.core.packet.SessionHistoryPacket
+        assertThat(p.carIdx).isEqualTo(7)
+        assertThat(p.bestLapTimeLapNum).isEqualTo(9)
+        assertThat(p.laps[8].lapTimeMs).isEqualTo(89_456)
+        assertThat(p.laps[8].sector2Ms).isEqualTo(31_250)
+        assertThat(p.laps[8].validFlags).isEqualTo(0x0F)
+        assertThat(p.stints[1].endLap).isEqualTo(20)
+        assertThat(p.stints[1].visualCompound).isEqualTo(18)
+    }
+
+    @Test
+    fun `tyre sets - int16 lap delta at +7, fitted index at 230`() {
+        val b = blankPacket(F1_25, PacketId.TYRE_SETS)
+        val set4 = 30 + 4 * 10
+        b.put(set4 + 1, 16) // visual soft
+        b.put(set4 + 2, 35) // wear
+        b.putShort(set4 + 7, (-420).toShort()) // lap delta
+        b.put(set4 + 9, 1) // fitted
+        b.put(230, 4)
+        val p = parse(b) as com.dashwroom.f1telemetry.core.packet.TyreSetsPacket
+        assertThat(p.sets[4].visualCompound).isEqualTo(16)
+        assertThat(p.sets[4].wearPercent).isEqualTo(35)
+        assertThat(p.sets[4].lapDeltaTimeMs).isEqualTo(-420)
+        assertThat(p.sets[4].fitted).isTrue()
+        assertThat(p.fittedIdx).isEqualTo(4)
+    }
+
+    @Test
+    fun `lap positions - row per lap, N cars wide`() {
+        val b = blankPacket(F1_25_SEASON_2026, PacketId.LAP_POSITIONS)
+        b.put(29, 3); b.put(30, 10)
+        b.put(31 + 2 * 24 + 21, 5) // lap row 2, vehicle 21 → P5
+        val p = parse(b) as com.dashwroom.f1telemetry.core.packet.LapPositionsPacket
+        assertThat(p.lapStart).isEqualTo(10)
+        assertThat(p.position(2, 21)).isEqualTo(5)
+    }
+
+    @Test
+    fun `final classification - double race time at +11`() {
+        val b = blankPacket(F1_25, PacketId.FINAL_CLASSIFICATION)
+        b.put(29, 20)
+        val car = 30 + 3 * 46
+        b.put(car, 1); b.putInt(car + 7, 88_123); b.putDouble(car + 11, 5_432.125); b.put(car + 21, 2)
+        b.put(car + 30 + 1, 18); b.put(car + 38 + 1, 255.toByte())
+        val p = parse(b) as com.dashwroom.f1telemetry.core.packet.FinalClassificationPacket
+        assertThat(p.numClassified).isEqualTo(20)
+        with(p.cars[3]) {
+            assertThat(position).isEqualTo(1)
+            assertThat(bestLapTimeMs).isEqualTo(88_123)
+            assertThat(totalRaceTimeSeconds).isEqualTo(5_432.125)
+            assertThat(tyreStintsVisual[1]).isEqualTo(18)
+            assertThat(tyreStintsEndLaps[1]).isEqualTo(255)
+        }
+    }
+
+    @Test
+    fun `motion ex - aero heights and camber gain tail`() {
+        val b = blankPacket(F1_25, PacketId.MOTION_EX)
+        b.putFloat(217, 0.031f); b.putFloat(221, 0.064f); b.putFloat(257 + 12, -0.004f)
+        val p = parse(b) as com.dashwroom.f1telemetry.core.packet.MotionExPacket
+        assertThat(p.frontAeroHeight).isEqualTo(0.031f)
+        assertThat(p.rearAeroHeight).isEqualTo(0.064f)
+        assertThat(p.wheelCamberGain[3]).isEqualTo(-0.004f)
+    }
+
+    @Test
+    fun `car telemetry 2 - overtake fields`() {
+        val b = blankPacket(F1_25_SEASON_2026, PacketId.CAR_TELEMETRY_2)
+        val car = 29 + 5 * 10
+        b.put(car, 1); b.put(car + 5, 1); b.putShort(car + 6, 340)
+        with((parse(b) as com.dashwroom.f1telemetry.core.packet.CarTelemetry2Packet).cars[5]) {
+            assertThat(activeAeroMode).isEqualTo(1)
+            assertThat(overtakeActive).isTrue()
+            assertThat(overtakeActivationDistance).isEqualTo(340)
+        }
+    }
+}

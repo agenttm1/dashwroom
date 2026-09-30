@@ -45,6 +45,6 @@ class TelemetryPipeline(
             stats.onParseResult(parser.header.packetId, parser.lastResult, parser.header.packetFormat)
             return
         }
-        store.apply(packet, receivedAtNanos)
+        store.apply(packet, buffer, length, receivedAtNanos)
     }
 }

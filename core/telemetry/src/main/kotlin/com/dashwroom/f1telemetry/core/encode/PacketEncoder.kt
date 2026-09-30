@@ -1,6 +1,13 @@
 package com.dashwroom.f1telemetry.core.encode
 
+import com.dashwroom.f1telemetry.core.packet.CarDamagePacket
 import com.dashwroom.f1telemetry.core.packet.CarStatusPacket
+import com.dashwroom.f1telemetry.core.packet.CarTelemetry2Packet
+import com.dashwroom.f1telemetry.core.packet.FinalClassificationPacket
+import com.dashwroom.f1telemetry.core.packet.LapPositionsPacket
+import com.dashwroom.f1telemetry.core.packet.MotionExPacket
+import com.dashwroom.f1telemetry.core.packet.SessionHistoryPacket
+import com.dashwroom.f1telemetry.core.packet.TyreSetsPacket
 import com.dashwroom.f1telemetry.core.packet.CarTelemetryPacket
 import com.dashwroom.f1telemetry.core.packet.EventCode
 import com.dashwroom.f1telemetry.core.packet.EventPacket
@@ -217,6 +224,106 @@ object PacketEncoder {
             w.f32(c.ersHarvestedThisLapMguk); w.f32(c.ersHarvestedThisLapMguh)
             if (is2026) w.f32(c.ersHarvestLimitPerLap)
             w.f32(c.ersDeployedThisLap); w.bool(c.networkPaused)
+        }
+    }
+
+    fun finalClassification(w: StructWriter, p: FinalClassificationPacket) {
+        header(w, p.header)
+        w.u8(p.numClassified)
+        for (i in 0 until p.numCars) {
+            val r = p.cars[i]
+            w.u8(r.position); w.u8(r.numLaps); w.u8(r.gridPosition); w.u8(r.points); w.u8(r.numPitStops)
+            w.u8(r.resultStatus); w.u8(r.resultReason); w.u32(r.bestLapTimeMs); w.f64(r.totalRaceTimeSeconds)
+            w.u8(r.penaltiesTimeSeconds); w.u8(r.numPenalties); w.u8(r.numTyreStints)
+            for (s in 0 until FinalClassificationPacket.MAX_STINTS) w.u8(r.tyreStintsActual[s])
+            for (s in 0 until FinalClassificationPacket.MAX_STINTS) w.u8(r.tyreStintsVisual[s])
+            for (s in 0 until FinalClassificationPacket.MAX_STINTS) w.u8(r.tyreStintsEndLaps[s])
+        }
+    }
+
+    fun carDamage(w: StructWriter, p: CarDamagePacket) {
+        header(w, p.header)
+        for (i in 0 until p.numCars) {
+            val c = p.cars[i]
+            for (k in 0 until 4) w.f32(c.tyresWear[k])
+            for (k in 0 until 4) w.u8(c.tyresDamage[k])
+            for (k in 0 until 4) w.u8(c.brakesDamage[k])
+            for (k in 0 until 4) w.u8(c.tyreBlisters[k])
+            w.u8(c.frontLeftWingDamage); w.u8(c.frontRightWingDamage); w.u8(c.rearWingDamage)
+            w.u8(c.floorDamage); w.u8(c.diffuserDamage); w.u8(c.sidepodDamage)
+            w.bool(c.drsFault); w.bool(c.ersFault); w.u8(c.gearBoxDamage); w.u8(c.engineDamage)
+            w.u8(c.engineMguhWear); w.u8(c.engineEsWear); w.u8(c.engineCeWear); w.u8(c.engineIceWear)
+            w.u8(c.engineMgukWear); w.u8(c.engineTcWear); w.bool(c.engineBlown); w.bool(c.engineSeized)
+        }
+    }
+
+    fun sessionHistory(w: StructWriter, p: SessionHistoryPacket) {
+        header(w, p.header)
+        w.u8(p.carIdx); w.u8(p.numLaps); w.u8(p.numTyreStints)
+        w.u8(p.bestLapTimeLapNum); w.u8(p.bestSector1LapNum); w.u8(p.bestSector2LapNum); w.u8(p.bestSector3LapNum)
+        for (l in 0 until SessionHistoryPacket.MAX_LAPS) {
+            val lap = p.laps[l]
+            w.u32(lap.lapTimeMs)
+            w.u16(lap.sector1Ms % 60_000); w.u8(lap.sector1Ms / 60_000)
+            w.u16(lap.sector2Ms % 60_000); w.u8(lap.sector2Ms / 60_000)
+            w.u16(lap.sector3Ms % 60_000); w.u8(lap.sector3Ms / 60_000)
+            w.u8(lap.validFlags)
+        }
+        for (s in 0 until SessionHistoryPacket.MAX_STINTS) {
+            val st = p.stints[s]
+            w.u8(st.endLap); w.u8(st.actualCompound); w.u8(st.visualCompound)
+        }
+    }
+
+    fun tyreSets(w: StructWriter, p: TyreSetsPacket) {
+        header(w, p.header)
+        w.u8(p.carIdx)
+        for (s in 0 until TyreSetsPacket.MAX_SETS) {
+            val t = p.sets[s]
+            w.u8(t.actualCompound); w.u8(t.visualCompound); w.u8(t.wearPercent); w.bool(t.available)
+            w.u8(t.recommendedSession); w.u8(t.lifeSpanLaps); w.u8(t.usableLifeLaps); w.i16(t.lapDeltaTimeMs)
+            w.bool(t.fitted)
+        }
+        w.u8(p.fittedIdx)
+    }
+
+    fun motionEx(w: StructWriter, p: MotionExPacket) {
+        header(w, p.header)
+        for (k in 0 until 4) w.f32(p.suspensionPosition[k])
+        for (k in 0 until 4) w.f32(p.suspensionVelocity[k])
+        for (k in 0 until 4) w.f32(p.suspensionAcceleration[k])
+        for (k in 0 until 4) w.f32(p.wheelSpeed[k])
+        for (k in 0 until 4) w.f32(p.wheelSlipRatio[k])
+        for (k in 0 until 4) w.f32(p.wheelSlipAngle[k])
+        for (k in 0 until 4) w.f32(p.wheelLatForce[k])
+        for (k in 0 until 4) w.f32(p.wheelLongForce[k])
+        w.f32(p.heightOfCogAboveGround)
+        w.f32(p.localVelocityX); w.f32(p.localVelocityY); w.f32(p.localVelocityZ)
+        w.f32(p.angularVelocityX); w.f32(p.angularVelocityY); w.f32(p.angularVelocityZ)
+        w.f32(p.angularAccelerationX); w.f32(p.angularAccelerationY); w.f32(p.angularAccelerationZ)
+        w.f32(p.frontWheelsAngle)
+        for (k in 0 until 4) w.f32(p.wheelVertForce[k])
+        w.f32(p.frontAeroHeight); w.f32(p.rearAeroHeight); w.f32(p.frontRollAngle); w.f32(p.rearRollAngle)
+        w.f32(p.chassisYaw); w.f32(p.chassisPitch)
+        for (k in 0 until 4) w.f32(p.wheelCamber[k])
+        for (k in 0 until 4) w.f32(p.wheelCamberGain[k])
+    }
+
+    fun lapPositions(w: StructWriter, p: LapPositionsPacket) {
+        header(w, p.header)
+        w.u8(p.numLaps); w.u8(p.lapStart)
+        for (lap in 0 until LapPositionsPacket.MAX_LAPS) {
+            for (car in 0 until p.numCars) w.u8(p.position(lap, car))
+        }
+    }
+
+    fun carTelemetry2(w: StructWriter, p: CarTelemetry2Packet) {
+        header(w, p.header)
+        for (i in 0 until p.numCars) {
+            val c = p.cars[i]
+            w.u8(c.activeAeroMode); w.bool(c.activeAeroAvailable); w.u16(c.activeAeroActivationDistance)
+            w.bool(c.overtakeAvailable); w.bool(c.overtakeActive); w.u16(c.overtakeActivationDistance)
+            w.bool(c.regulations2026); w.bool(c.drivingWrongWay)
         }
     }
 

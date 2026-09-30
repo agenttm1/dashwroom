@@ -18,37 +18,44 @@ class MockRace(
     val totalLaps: Int = 20,
     seed: Long = 42L,
     val track: MockTrack = MockTrack(),
+    val mode: MockSessionMode = MockSessionMode.RACE,
 ) {
     val entrants: List<MockEntrant> = MockRoster.forFormat(format)
     val carCount = entrants.size
     val cars = MockCars(carCount)
     val events = MockEvents()
-    private val rng = XorShift(seed)
+    internal val rng = XorShift(seed)
+    private val qualifying = MockQualifyingRules(this)
 
     /** The human player's vehicle index — deliberately not 0 to catch index mix-ups. */
     val playerIndex = 5
 
-    var sessionTime = 0f; private set
-    var phase = Phase.GRID; private set
+    var sessionTime = 0f; internal set
+    var phase = Phase.GRID; internal set
     var lightsShown = 0; private set
     var drsEnabled = false; private set
 
     /** 0 none, 1 full safety car (mirrors Session m_safetyCarStatus). */
     var safetyCarStatus = 0; private set
-    var sessionBestLapMs = Long.MAX_VALUE; private set
-    var fastestLapCar = -1; private set
-    var finishedAt = -1f; private set
+    var sessionBestLapMs = Long.MAX_VALUE; internal set
+    var fastestLapCar = -1; internal set
+    var finishedAt = -1f; internal set
+
+    /** Session length in seconds (the game's m_sessionDuration). */
+    val sessionDurationS: Int = if (mode == MockSessionMode.QUALIFYING) 720 else 7200
 
     private var lightsOutAt = 0f
-    private val safetyCarLap = 6 + rng.nextInt(3)
+    // Scripted incidents scale with race length so short test races still see all of them.
+    private val safetyCarLap = (totalLaps * 0.35f).toInt().coerceAtLeast(2) + rng.nextInt(2)
     private var safetyCarEndLap = -1
     private var safetyCarReturning = false
     private var drsReenableLap = 3
-    private val penaltyLap = 4
+    private val penaltyLap = (totalLaps / 5).coerceAtLeast(2)
     private var penaltyIssued = false
-    private val retirementLap = 10
+    private val retirementLap = (totalLaps / 2).coerceAtLeast(3)
     private var retiredCar = -1
     private var finishers = 0
+    private var playerContact = false
 
     enum class Phase { GRID, LIGHTS, RACING, FINISHED }
 
@@ -75,11 +82,8 @@ class MockRace(
         val c = cars
         for (i in 0 until carCount) {
             c.order[i] = i
-            c.gridPosition[i] = i + 1
-            c.position[i] = i + 1
-            c.previousPosition[i] = i + 1
             c.lap[i] = 1
-            c.lapDistance[i] = -GRID_SPACING_M * (i + 1)
+            c.lapDistance[i] = 0f
             c.totalDistance[i] = c.lapDistance[i]
             c.rankKey[i] = c.totalDistance[i]
             c.speed[i] = 0f
@@ -116,13 +120,56 @@ class MockRace(
             c.lapNoise[i] = rng.range(-0.002f, 0.002f)
             c.laneOffset[i] = ((i % 5) - 2) * 1.6f
             c.lastCheckpoint[i] = -1
+            c.driverStatus[i] = DRIVER_ON_TRACK
+            c.lapInvalid[i] = false
+            c.historyLaps[i] = 0
+            c.stintCount[i] = 1
+            c.stintEndLap[i * MockCars.MAX_STINTS] = 255
+            c.stintVisual[i * MockCars.MAX_STINTS] = c.visualCompound[i]
+            c.stintActual[i * MockCars.MAX_STINTS] = c.actualCompound[i]
+
+            c.frontLeftWingDamage[i] = 0
+            c.floorDamage[i] = 0
+            c.engineWear[i] = 6f + rng.range(0f, 8f)
         }
+        playerContact = false
+        buildGrid()
+        if (mode == MockSessionMode.QUALIFYING) qualifying.reset()
         c.checkpointLap.fill(-1)
         events.raise(EventCode.SESSION_STARTED)
     }
 
+    /** Grid roughly in pace order, with enough noise that faster cars start behind slower ones. */
+    private fun buildGrid() {
+        val c = cars
+        val keys = FloatArray(carCount) { it + rng.range(-5f, 5f) }
+        for (a in 1 until carCount) {
+            val car = c.order[a]
+            var b = a - 1
+            while (b >= 0 && keys[c.order[b]] > keys[car]) {
+                c.order[b + 1] = c.order[b]
+                b--
+            }
+            c.order[b + 1] = car
+        }
+        for (k in 0 until carCount) {
+            val i = c.order[k]
+            c.gridPosition[i] = k + 1
+            c.position[i] = k + 1
+            c.previousPosition[i] = k + 1
+            c.lapDistance[i] = -GRID_SPACING_M * (k + 1)
+            c.totalDistance[i] = c.lapDistance[i]
+            c.rankKey[i] = c.totalDistance[i]
+            c.lapStartPosition[i * MockCars.MAX_LAPS] = k + 1
+        }
+    }
+
     fun step(dt: Float) {
         sessionTime += dt
+        if (mode == MockSessionMode.QUALIFYING) {
+            qualifying.step(dt)
+            return
+        }
         when (phase) {
             Phase.GRID -> if (sessionTime >= GRID_WAIT_S) phase = Phase.LIGHTS
             Phase.LIGHTS -> runLights()
@@ -187,7 +234,7 @@ class MockRace(
         }
     }
 
-    private fun paceFactor(i: Int): Float {
+    internal fun paceFactor(i: Int): Float {
         val c = cars
         val wearPenalty = c.tyreWear[i] * 0.06f
         val compound = if (c.visualCompound[i] == VISUAL_SOFT) 0.004f else if (c.visualCompound[i] == VISUAL_HARD) -0.004f else 0f
@@ -212,7 +259,10 @@ class MockRace(
             c.drsOpen[i] = true
             return target * DRS_BOOST
         }
-        if (gapM in 0f..FOLLOW_DISTANCE_M) return min(target, c.speed[ahead] + 0.4f)
+        // In dirty air you can match the car ahead; passing needs DRS or a clear pace advantage.
+        if (gapM in 0f..FOLLOW_DISTANCE_M) {
+            return if (target > c.speed[ahead] * CLEAR_PACE_ADVANTAGE) target * DIRTY_AIR_LOSS else min(target, c.speed[ahead])
+        }
         return target
     }
 
@@ -240,10 +290,7 @@ class MockRace(
                     c.pitStatus[i] = PIT_LANE
                     c.pitStops[i]++
                     val toHard = c.visualCompound[i] != VISUAL_HARD
-                    c.visualCompound[i] = if (toHard) VISUAL_HARD else VISUAL_MEDIUM
-                    c.actualCompound[i] = if (toHard) ACTUAL_C1 else ACTUAL_C2
-                    c.tyreAge[i] = 0
-                    c.tyreWear[i] = 0f
+                    changeTyres(i, if (toHard) VISUAL_HARD else VISUAL_MEDIUM, if (toHard) ACTUAL_C1 else ACTUAL_C2)
                 }
             }
         }
@@ -255,7 +302,7 @@ class MockRace(
         return if (c.pitStatus[i] != 0) min(target, PIT_SPEED_MS) else target
     }
 
-    private fun updateEnergy(i: Int, ds: Float, dt: Float) {
+    internal fun updateEnergy(i: Int, ds: Float, dt: Float) {
         val c = cars
         val lapFraction = ds / track.lengthM
         c.fuel[i] = max(0f, c.fuel[i] - lapFraction * FUEL_PER_LAP_KG)
@@ -265,6 +312,7 @@ class MockRace(
             else -> 0.015f
         }
         c.tyreWear[i] = min(1f, c.tyreWear[i] + lapFraction * wearPerLap)
+        c.engineWear[i] = min(100f, c.engineWear[i] + lapFraction * 0.35f)
         val a = c.accel[i]
         if (a < -8f) {
             val harvest = min(ERS_HARVEST_W * dt, ERS_MAX_J - c.ersStore[i])
@@ -281,7 +329,7 @@ class MockRace(
         }
     }
 
-    private fun updateTiming(i: Int, ds: Float, dt: Float) {
+    internal fun updateTiming(i: Int, ds: Float, dt: Float) {
         val c = cars
         val s = c.lapDistance[i]
         val lapElapsedMs = ((sessionTime - c.lapStartTime[i]) * 1000).toInt()
@@ -326,15 +374,17 @@ class MockRace(
         return if (c.speed[i] > 1f) (gapM / c.speed[i] * 1000).toInt().coerceAtLeast(0) else 0
     }
 
-    private fun completeLap(i: Int, v: Float) {
+    internal fun completeLap(i: Int, v: Float) {
         val c = cars
         c.lapDistance[i] -= track.lengthM
         val overshoot = if (v > 0f) c.lapDistance[i] / v else 0f
         val crossTime = sessionTime - overshoot
         val lapMs = ((crossTime - c.lapStartTime[i]) * 1000).toLong()
         c.lastLapMs[i] = lapMs
-        if (c.bestLapMs[i] == 0L || lapMs < c.bestLapMs[i]) c.bestLapMs[i] = lapMs
-        if (lapMs < sessionBestLapMs && c.pitStatus[i] == 0) {
+        recordHistory(i, lapMs)
+        val countsAsBest = !c.lapInvalid[i] && (mode == MockSessionMode.RACE || c.driverStatus[i] == DRIVER_FLYING)
+        if (countsAsBest && (c.bestLapMs[i] == 0L || lapMs < c.bestLapMs[i])) c.bestLapMs[i] = lapMs
+        if (countsAsBest && lapMs < sessionBestLapMs && c.pitStatus[i] == 0) {
             sessionBestLapMs = lapMs
             fastestLapCar = i
             val e = events.raise(EventCode.FASTEST_LAP)
@@ -349,7 +399,13 @@ class MockRace(
         c.ersHarvestedLap[i] = 0f
         c.ersDeployedLap[i] = 0f
         c.lapNoise[i] = rng.range(-0.002f, 0.002f)
+        c.lapInvalid[i] = false
 
+        if (mode == MockSessionMode.QUALIFYING) {
+            c.lap[i]++
+            qualifying.onLapCompleted(i)
+            return
+        }
         if (phase == Phase.FINISHED && c.resultStatus[i] == RESULT_ACTIVE) {
             finishCar(i)
             return
@@ -363,9 +419,41 @@ class MockRace(
             return
         }
         c.lap[i]++
+        if (c.lap[i] <= MockCars.MAX_LAPS) c.lapStartPosition[i * MockCars.MAX_LAPS + c.lap[i] - 1] = c.position[i]
     }
 
-    private fun finishCar(i: Int) {
+    private fun recordHistory(i: Int, lapMs: Long) {
+        val c = cars
+        val n = c.historyLaps[i]
+        if (n >= MockCars.MAX_LAPS) return
+        val k = i * MockCars.MAX_LAPS + n
+        c.historyLapMs[k] = lapMs
+        c.historyS1[k] = c.sector1Ms[i]
+        c.historyS2[k] = c.sector2Ms[i]
+        c.historyS3[k] = (lapMs - c.sector1Ms[i] - c.sector2Ms[i]).toInt().coerceAtLeast(0)
+        c.historyValid[k] = !c.lapInvalid[i]
+        c.historyLaps[i] = n + 1
+    }
+
+    /** Closes the current tyre stint on the last completed lap and opens a new one. */
+    internal fun changeTyres(i: Int, visual: Int, actual: Int) {
+        val c = cars
+        val base = i * MockCars.MAX_STINTS
+        val n = c.stintCount[i]
+        if (n > 0) c.stintEndLap[base + n - 1] = (c.lap[i] - 1).coerceAtLeast(1)
+        if (n < MockCars.MAX_STINTS) {
+            c.stintEndLap[base + n] = 255
+            c.stintVisual[base + n] = visual
+            c.stintActual[base + n] = actual
+            c.stintCount[i] = n + 1
+        }
+        c.visualCompound[i] = visual
+        c.actualCompound[i] = actual
+        c.tyreAge[i] = 0
+        c.tyreWear[i] = 0f
+    }
+
+    internal fun finishCar(i: Int) {
         val c = cars
         c.resultStatus[i] = RESULT_FINISHED
         finishers++
@@ -376,7 +464,7 @@ class MockRace(
         }
     }
 
-    private fun activeCount(): Int {
+    internal fun activeCount(): Int {
         var n = 0
         for (i in 0 until carCount) if (cars.resultStatus[i] != RESULT_RETIRED) n++
         return n
@@ -384,7 +472,7 @@ class MockRace(
 
     // ---------------------------------------------------------------- order & race control
 
-    private fun sortOrder() {
+    internal fun sortOrder() {
         val c = cars
         for (i in 0 until carCount) c.previousPosition[i] = c.position[i]
         // Insertion sort — the order is almost always already sorted, so this is ~O(n).
@@ -469,6 +557,17 @@ class MockRace(
             e.penalty.lapNum = cars.lap[victim]
             e.penalty.placesGained = 0
         }
+        val p = playerIndex
+        if (!playerContact && cars.lap[p] == CONTACT_LAP && cars.lapDistance[p] > track.lengthM * 0.3f && cars.position[p] > 1) {
+            playerContact = true
+            val other = cars.order[cars.position[p] - 2]
+            cars.frontLeftWingDamage[p] = 14
+            cars.floorDamage[p] = 6
+            val e = events.raise(EventCode.COLLISION)
+            e.collisionVehicle1Idx = p
+            e.collisionVehicle2Idx = other
+            e.collisionSeverity = 0
+        }
         if (retiredCar < 0 && leaderLap == retirementLap && leaderS > track.lengthM * 0.3f) {
             retiredCar = cars.order[carCount - 3].let { if (it == playerIndex) cars.order[carCount - 4] else it }
             cars.resultStatus[retiredCar] = RESULT_RETIRED
@@ -481,6 +580,12 @@ class MockRace(
 
     companion object {
         const val RESULT_ACTIVE = 2
+        const val DRIVER_IN_GARAGE = 0
+        const val DRIVER_FLYING = 1
+        const val DRIVER_IN_LAP = 2
+        const val DRIVER_OUT_LAP = 3
+        const val DRIVER_ON_TRACK = 4
+        private const val CONTACT_LAP = 3
         const val RESULT_FINISHED = 3
         const val RESULT_RETIRED = 7
         const val PIT_LANE = 1
@@ -494,12 +599,14 @@ class MockRace(
         const val ERS_MAX_J = 4_000_000f
         const val FUEL_PER_LAP_KG = 1.6f
 
-        private const val GRID_WAIT_S = 2f
+        internal const val GRID_WAIT_S = 2f
         private const val GRID_SPACING_M = 8f
         private const val SAFETY_CAR_PACE = 0.58f
         private const val SC_GAP_M = 30f
         private const val DRS_BOOST = 1.045f
         private const val FOLLOW_DISTANCE_M = 12f
+        private const val CLEAR_PACE_ADVANTAGE = 1.012f
+        private const val DIRTY_AIR_LOSS = 0.996f
         private const val PIT_ENTRY_M = 260f
         private const val PIT_EXIT_M = 380f
         private const val PIT_BOX_M = 120f

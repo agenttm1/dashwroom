@@ -43,6 +43,32 @@ data class SessionInfo(
     val pitSpeedLimitKph: Int,
     val gamePaused: Boolean,
     val networkGame: Boolean,
+    val pitStopWindowIdealLap: Int = 0,
+    val pitStopWindowLatestLap: Int = 0,
+    val pitStopRejoinPosition: Int = 0,
+    val sector2StartM: Float = 0f,
+    val sector3StartM: Float = 0f,
+    val numSafetyCarPeriods: Int = 0,
+    val numVirtualSafetyCarPeriods: Int = 0,
+    val numRedFlagPeriods: Int = 0,
+    /** Yellow/blue/green flags per marshal zone (−1 unknown, 0 none, 1 green, 2 blue, 3 yellow). */
+    val marshalZoneFlags: ImmutableList<Int> = persistentListOf(),
+    val forecast: ImmutableList<WeatherSample> = persistentListOf(),
+    val ruleSet: Int = 0,
+    val gameMode: Int = 0,
+) {
+    val isRace: Boolean get() = sessionType in 15..17
+    val isQualifying: Boolean get() = sessionType in 5..14
+    val isPractice: Boolean get() = sessionType in 1..4
+    val isTimeTrial: Boolean get() = sessionType == 18
+}
+
+data class WeatherSample(
+    val timeOffsetMinutes: Int,
+    val weather: Int,
+    val trackTemperatureC: Int,
+    val airTemperatureC: Int,
+    val rainPercentage: Int,
 )
 
 data class ParticipantInfo(

@@ -1,66 +1,147 @@
 package com.dashwroom.f1telemetry.core.state
 
-import com.dashwroom.f1telemetry.core.model.ParticipantInfo
-import com.dashwroom.f1telemetry.core.model.SessionInfo
+import com.dashwroom.f1telemetry.core.model.HistoryState
+import com.dashwroom.f1telemetry.core.model.LapTrace
+import com.dashwroom.f1telemetry.core.model.PlayerCarState
+import com.dashwroom.f1telemetry.core.model.RaceEvent
+import com.dashwroom.f1telemetry.core.model.RaceState
 import com.dashwroom.f1telemetry.core.model.SessionState
+import com.dashwroom.f1telemetry.core.model.TrackOutline
+import com.dashwroom.f1telemetry.core.packet.CarDamagePacket
 import com.dashwroom.f1telemetry.core.packet.CarStatusPacket
+import com.dashwroom.f1telemetry.core.packet.CarTelemetry2Packet
 import com.dashwroom.f1telemetry.core.packet.CarTelemetryPacket
 import com.dashwroom.f1telemetry.core.packet.EventPacket
 import com.dashwroom.f1telemetry.core.packet.F1Packet
+import com.dashwroom.f1telemetry.core.packet.FinalClassificationPacket
 import com.dashwroom.f1telemetry.core.packet.LapDataPacket
+import com.dashwroom.f1telemetry.core.packet.LapPositionsPacket
+import com.dashwroom.f1telemetry.core.packet.MotionExPacket
 import com.dashwroom.f1telemetry.core.packet.MotionPacket
 import com.dashwroom.f1telemetry.core.packet.ParticipantsPacket
+import com.dashwroom.f1telemetry.core.packet.SessionHistoryPacket
 import com.dashwroom.f1telemetry.core.packet.SessionPacket
-import com.dashwroom.f1telemetry.core.spec.Appendix
-import kotlinx.collections.immutable.toImmutableList
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.dashwroom.f1telemetry.core.packet.TyreSetsPacket
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import java.nio.ByteBuffer
 
 /**
- * Merges decoded packets into application state. Runs on the ingest thread only.
+ * Merges decoded packets into application state. Ingest thread only.
  *
- * - Every 60 Hz packet writes straight into [hot]; this path allocates nothing.
- * - Slow packets (session 2 Hz, participants every 5 s) rebuild the immutable [session] model;
- *   [MutableStateFlow] drops the update if nothing actually changed.
+ * Per packet (60 Hz, allocation-free): update [hot] values, per-car live arrays, lap-timing
+ * traces, the lap recorder and the track outline, and stash the raw bytes of "cold" packets.
+ * At most 10×/s (immediately for session/participants/final classification) the stash is decoded
+ * into immutable models: [session], [race], [player], [history]. Events publish as they happen.
  */
 class TelemetryStore(val hot: HotTelemetry) {
-    private val _session = MutableStateFlow(SessionState.Empty)
-    val session: StateFlow<SessionState> = _session.asStateFlow()
+    private val cars = CarsLive()
+    private val roster = Roster()
+    private val stash = ColdStash()
+    private val traces = LapTimingTraces(cars, hot)
+    private val builder = ColdModelBuilder(stash, roster, cars, traces)
+    private val outlineBuilder = TrackOutlineBuilder(cars)
+    private val recorder = PlayerLapRecorder(cars)
+    private val eventLog = EventLog(roster, cars)
+
+    val session: StateFlow<SessionState> = builder.session
+    val race: StateFlow<RaceState> = builder.race
+    val player: StateFlow<PlayerCarState> = builder.player
+    val history: StateFlow<HistoryState> = builder.history
+    val events: StateFlow<ImmutableList<RaceEvent>> = eventLog.events
+    val trackOutline: StateFlow<TrackOutline?> = outlineBuilder.outline
+    val laps: StateFlow<ImmutableList<LapTrace>> = recorder.laps
+    val completedLaps: SharedFlow<LapTrace> = recorder.completed
 
     private var sessionUid = 0L
+    private var hasSession = false
 
-    fun apply(packet: F1Packet, receivedAtNanos: Long) {
+    fun apply(packet: F1Packet, buffer: ByteBuffer, length: Int, receivedAtNanos: Long) {
         val header = packet.header
-        if (header.sessionUid != sessionUid) startNewSession(header.sessionUid, packet)
-        hot.playerCarIndex = header.playerCarIndex
+        if (!hasSession || header.sessionUid != sessionUid) startNewSession(packet)
+        val player = header.playerCarIndex
+        hot.playerCarIndex = player
         hot.sessionTime = header.sessionTime
+        var force = false
         when (packet) {
-            is CarTelemetryPacket -> applyTelemetry(packet)
-            is CarStatusPacket -> applyStatus(packet)
-            is LapDataPacket -> applyLapData(packet)
-            is MotionPacket -> applyMotion(packet, receivedAtNanos)
-            is SessionPacket -> applySession(packet)
-            is ParticipantsPacket -> applyParticipants(packet)
-            is EventPacket -> Unit // Event feed arrives in Phase 2.
+            is CarTelemetryPacket -> {
+                applyTelemetry(packet)
+                recorder.applyTelemetry(packet)
+                stash.stash(packet.packetId, 0, buffer, length)
+            }
+            is CarStatusPacket -> {
+                applyStatus(packet)
+                recorder.applyStatus(packet)
+                stash.stash(packet.packetId, 0, buffer, length)
+            }
+            is LapDataPacket -> {
+                cars.update(packet)
+                applyLapData(packet)
+                traces.apply(packet)
+                recorder.applyLapData(packet)
+                stash.stash(packet.packetId, 0, buffer, length)
+            }
+            is MotionPacket -> {
+                applyMotion(packet, receivedAtNanos)
+                outlineBuilder.apply(packet, receivedAtNanos)
+            }
+            is SessionPacket -> {
+                cars.trackLengthM = packet.trackLength.toFloat()
+                stash.stash(packet.packetId, 0, buffer, length)
+                force = true
+            }
+            is ParticipantsPacket -> {
+                roster.update(packet)
+                stash.stash(packet.packetId, 0, buffer, length)
+                force = true
+            }
+            is EventPacket -> eventLog.apply(packet, player)
+            is CarDamagePacket, is MotionExPacket, is LapPositionsPacket ->
+                stash.stash(packet.packetId, 0, buffer, length)
+            is SessionHistoryPacket -> stash.stash(packet.packetId, packet.carIdx, buffer, length)
+            is TyreSetsPacket -> stash.stash(packet.packetId, packet.carIdx, buffer, length)
+            is FinalClassificationPacket -> {
+                stash.stash(packet.packetId, 0, buffer, length)
+                force = true
+            }
+            is CarTelemetry2Packet -> {
+                if (player < packet.numCars) {
+                    val c = packet.cars[player]
+                    hot.overtakeAvailable = c.overtakeAvailable
+                    hot.overtakeActive = c.overtakeActive
+                    hot.activeAeroStraightMode = c.activeAeroMode == 1
+                }
+                stash.stash(packet.packetId, 0, buffer, length)
+            }
         }
         hot.publish(receivedAtNanos)
+        builder.maybePublish(receivedAtNanos, force)
     }
 
     fun reset() {
+        hasSession = false
         sessionUid = 0L
-        hot.reset()
-        _session.value = SessionState.Empty
+        resetAll()
+        builder.clear()
     }
 
-    private fun startNewSession(uid: Long, packet: F1Packet) {
-        sessionUid = uid
+    private fun startNewSession(packet: F1Packet) {
+        hasSession = true
+        sessionUid = packet.header.sessionUid
+        resetAll()
+        builder.reset(sessionUid, packet.format, packet.header.playerCarIndex)
+    }
+
+    private fun resetAll() {
         hot.reset()
-        _session.value = SessionState(
-            sessionUid = uid,
-            format = packet.format,
-            playerCarIndex = packet.header.playerCarIndex,
-        )
+        cars.reset()
+        roster.reset()
+        stash.clear()
+        traces.reset()
+        outlineBuilder.reset()
+        recorder.reset()
+        eventLog.reset()
     }
 
     private fun applyTelemetry(p: CarTelemetryPacket) {
@@ -118,60 +199,6 @@ class TelemetryStore(val hot: HotTelemetry) {
         for (i in 0 until p.numCars) {
             val c = p.cars[i]
             hot.setCarPosition(i, c.worldPositionX, c.worldPositionZ)
-        }
-    }
-
-    private fun applySession(p: SessionPacket) {
-        val info = SessionInfo(
-            trackId = p.trackId,
-            trackName = Appendix.trackName(p.trackId),
-            trackLengthM = p.trackLength,
-            sessionType = p.sessionType,
-            sessionTypeName = Appendix.sessionTypeName(p.sessionType),
-            weather = p.weather,
-            weatherName = Appendix.weatherName(p.weather),
-            trackTemperatureC = p.trackTemperature,
-            airTemperatureC = p.airTemperature,
-            totalLaps = p.totalLaps,
-            sessionTimeLeftS = p.sessionTimeLeft,
-            sessionDurationS = p.sessionDuration,
-            safetyCarStatus = p.safetyCarStatus,
-            formula = p.formula,
-            pitSpeedLimitKph = p.pitSpeedLimit,
-            gamePaused = p.gamePaused,
-            networkGame = p.networkGame,
-        )
-        val current = _session.value
-        if (current.info != info || current.format != p.format) {
-            _session.value = current.copy(info = info, format = p.format, playerCarIndex = p.header.playerCarIndex)
-        }
-    }
-
-    private fun applyParticipants(p: ParticipantsPacket) {
-        val count = p.numActiveCars.coerceAtMost(p.numCars)
-        val list = ArrayList<ParticipantInfo>(count)
-        for (i in 0 until count) {
-            val c = p.cars[i]
-            list += ParticipantInfo(
-                vehicleIndex = i,
-                name = c.name,
-                driverId = c.driverId,
-                teamId = c.teamId,
-                teamName = Appendix.teamName(c.teamId),
-                raceNumber = c.raceNumber,
-                nationality = c.nationality,
-                aiControlled = c.aiControlled,
-                telemetryPublic = c.yourTelemetryPublic,
-                liveryColour = if (c.numColours > 0) c.liveryColours[0] else null,
-            )
-        }
-        val current = _session.value
-        if (current.participants != list || current.numActiveCars != p.numActiveCars) {
-            _session.value = current.copy(
-                participants = list.toImmutableList(),
-                numActiveCars = p.numActiveCars,
-                playerCarIndex = p.header.playerCarIndex,
-            )
         }
     }
 

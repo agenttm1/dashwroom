@@ -27,17 +27,23 @@ class MockTelemetryEmitter(
     private val seed: Long = 42L,
     /** Time multiplier for the simulation clock (1 = real time). */
     private val timeScale: Float = 1f,
+    private val mode: MockSessionMode = MockSessionMode.RACE,
 ) : PacketSource {
     override val kind = SourceKind.MOCK
-    override val description = "Mock race · ${format.displayName} · ${rateHz}Hz"
+    override val description = "Mock ${mode.label.lowercase()} · ${format.displayName} · ${rateHz}Hz"
 
     private val track = MockTrack()
-    private var race = MockRace(format, totalLaps, seed, track)
+    private var race = MockRace(format, totalLaps, seed, track, mode)
     private var sessionUid = seed * 7_919 + 1
     private var builder = MockPacketBuilder(race, sessionUid)
     private val writer = StructWriter(PacketSizes.MAX_DATAGRAM)
     private var nextSessionAt = 0f
     private var nextParticipantsAt = 0f
+    private var nextDamageAt = 0f
+    private var nextTyreSetsAt = 0f
+    private var nextLapPositionsAt = 0f
+    private var historyCar = 0
+    private var classificationSent = false
     private var sessionCount = 0
 
     val currentRace: MockRace get() = race
@@ -81,6 +87,30 @@ class MockTelemetryEmitter(
         deliver(sink, nowNanos) { PacketEncoder.carStatus(it, builder.buildStatus()) }
         deliver(sink, nowNanos) { PacketEncoder.carTelemetry(it, builder.buildTelemetry()) }
         deliver(sink, nowNanos) { PacketEncoder.motion(it, builder.buildMotion()) }
+        deliver(sink, nowNanos) { PacketEncoder.motionEx(it, builder.buildMotionEx()) }
+        if (format == PacketFormat.F1_25_SEASON_2026) {
+            deliver(sink, nowNanos) { PacketEncoder.carTelemetry2(it, builder.buildTelemetry2()) }
+        }
+        if (t >= nextDamageAt) {
+            nextDamageAt += DAMAGE_INTERVAL_S
+            deliver(sink, nowNanos) { PacketEncoder.carDamage(it, builder.buildDamage()) }
+        }
+        if (builder.frame % HISTORY_EVERY_FRAMES == 0L) {
+            historyCar = (historyCar + 1) % race.carCount
+            deliver(sink, nowNanos) { PacketEncoder.sessionHistory(it, builder.buildHistory(historyCar)) }
+        }
+        if (t >= nextTyreSetsAt) {
+            nextTyreSetsAt += TYRE_SETS_INTERVAL_S
+            deliver(sink, nowNanos) { PacketEncoder.tyreSets(it, builder.buildTyreSets()) }
+        }
+        if (t >= nextLapPositionsAt && mode == MockSessionMode.RACE) {
+            nextLapPositionsAt += LAP_POSITIONS_INTERVAL_S
+            deliver(sink, nowNanos) { PacketEncoder.lapPositions(it, builder.buildLapPositions()) }
+        }
+        if (!classificationSent && race.finishedAt >= 0f && mode == MockSessionMode.RACE) {
+            classificationSent = true
+            deliver(sink, nowNanos) { PacketEncoder.finalClassification(it, builder.buildFinalClassification()) }
+        }
         while (true) {
             val event = race.events.poll() ?: break
             builder.header(event.header, PacketId.EVENT)
@@ -98,16 +128,26 @@ class MockTelemetryEmitter(
 
     private fun startNewSession() {
         sessionCount++
-        race = MockRace(format, totalLaps, seed + sessionCount, track)
+        race = MockRace(format, totalLaps, seed + sessionCount, track, mode)
         sessionUid += 1
         builder = MockPacketBuilder(race, sessionUid)
         nextSessionAt = 0f
         nextParticipantsAt = 0f
+        nextDamageAt = 0f
+        nextTyreSetsAt = 0f
+        nextLapPositionsAt = 0f
+        classificationSent = false
     }
 
     private companion object {
         const val RESTART_AFTER_S = 8f
         const val SESSION_INTERVAL_S = 0.5f
         const val PARTICIPANTS_INTERVAL_S = 5f
+        const val DAMAGE_INTERVAL_S = 0.5f
+        const val TYRE_SETS_INTERVAL_S = 1f
+        const val LAP_POSITIONS_INTERVAL_S = 1f
+
+        /** 60 Hz ÷ 3 = one car's history 20×/s, like the game. */
+        const val HISTORY_EVERY_FRAMES = 3L
     }
 }

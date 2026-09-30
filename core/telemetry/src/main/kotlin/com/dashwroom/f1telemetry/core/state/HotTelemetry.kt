@@ -56,6 +56,16 @@ class HotTelemetry {
     @Volatile var currentLapInvalid = false
     @Volatile var lapDistance = 0f
 
+    // Player live deltas (ms) at the same track position; Int.MIN_VALUE = no reference yet.
+    @Volatile var deltaToPersonalBestMs = NO_DELTA
+    @Volatile var deltaToSessionBestMs = NO_DELTA
+    @Volatile var deltaToLastLapMs = NO_DELTA
+
+    // 2026: Overtake Mode / active aero for the player.
+    @Volatile var overtakeAvailable = false
+    @Volatile var overtakeActive = false
+    @Volatile var activeAeroStraightMode = false
+
     // All cars — Motion (packet 0) + which slots are live (Lap Data result status).
     private val positionCurrent = AtomicLongArray(PacketFormat.MAX_CARS)
     private val positionPrevious = AtomicLongArray(PacketFormat.MAX_CARS)
@@ -72,6 +82,8 @@ class HotTelemetry {
     fun previousCarX(index: Int): Float = Float.fromBits((positionPrevious.get(index) ushr 32).toInt())
 
     fun previousCarZ(index: Int): Float = Float.fromBits(positionPrevious.get(index).toInt())
+
+    fun hasDelta(value: Int): Boolean = value != NO_DELTA
 
     fun isCarActive(index: Int): Boolean = (activeCarsMask ushr index) and 1 == 1
 
@@ -100,11 +112,17 @@ class HotTelemetry {
         ersStoreEnergy = 0f; ersDeployMode = 0; fuelInTank = 0f; fuelRemainingLaps = 0f
         currentLapTimeMs = 0; lastLapTimeMs = 0; currentLapNum = 0; carPosition = 0; sector = 0
         currentLapInvalid = false; lapDistance = 0f; activeCarsMask = 0; sessionTime = 0f
+        deltaToPersonalBestMs = NO_DELTA; deltaToSessionBestMs = NO_DELTA; deltaToLastLapMs = NO_DELTA
+        overtakeAvailable = false; overtakeActive = false; activeAeroStraightMode = false
         for (i in 0 until PacketFormat.MAX_CARS) {
             positionCurrent.set(i, 0)
             positionPrevious.set(i, 0)
         }
         motionCurrentNanos = 0; motionPreviousNanos = 0; lastUpdateNanos = 0
         version = version + 1
+    }
+
+    companion object {
+        const val NO_DELTA = Int.MIN_VALUE
     }
 }

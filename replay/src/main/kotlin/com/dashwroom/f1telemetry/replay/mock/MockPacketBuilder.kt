@@ -1,6 +1,13 @@
 package com.dashwroom.f1telemetry.replay.mock
 
+import com.dashwroom.f1telemetry.core.packet.CarDamagePacket
 import com.dashwroom.f1telemetry.core.packet.CarStatusPacket
+import com.dashwroom.f1telemetry.core.packet.CarTelemetry2Packet
+import com.dashwroom.f1telemetry.core.packet.FinalClassificationPacket
+import com.dashwroom.f1telemetry.core.packet.LapPositionsPacket
+import com.dashwroom.f1telemetry.core.packet.MotionExPacket
+import com.dashwroom.f1telemetry.core.packet.SessionHistoryPacket
+import com.dashwroom.f1telemetry.core.packet.TyreSetsPacket
 import com.dashwroom.f1telemetry.core.packet.CarTelemetryPacket
 import com.dashwroom.f1telemetry.core.packet.LapDataPacket
 import com.dashwroom.f1telemetry.core.packet.MotionPacket
@@ -61,9 +68,11 @@ class MockPacketBuilder(private val race: MockRace, private val sessionUid: Long
             val fz = sin(h)
             val off = cars.laneOffset[i]
             val v = cars.speed[i]
-            m.worldPositionX = track.x[idx] - fz * off
+            // Cars in the garage sit in the pit lane, beside the start line.
+            val garageOffset = if (cars.driverStatus[i] == MockRace.DRIVER_IN_GARAGE) PIT_LANE_OFFSET_M else 0f
+            m.worldPositionX = track.x[idx] - fz * (off + garageOffset)
             m.worldPositionY = track.y[idx]
-            m.worldPositionZ = track.z[idx] + fx * off
+            m.worldPositionZ = track.z[idx] + fx * (off + garageOffset)
             m.worldVelocityX = fx * v
             m.worldVelocityY = 0f
             m.worldVelocityZ = fz * v
@@ -91,8 +100,9 @@ class MockPacketBuilder(private val race: MockRace, private val sessionUid: Long
                 zeroLap(l)
                 continue
             }
+            val inGarage = cars.driverStatus[i] == MockRace.DRIVER_IN_GARAGE
             l.lastLapTimeMs = cars.lastLapMs[i]
-            l.currentLapTimeMs = if (race.phase == MockRace.Phase.RACING || race.phase == MockRace.Phase.FINISHED) {
+            l.currentLapTimeMs = if (!inGarage && (race.phase == MockRace.Phase.RACING || race.phase == MockRace.Phase.FINISHED)) {
                 ((race.sessionTime - cars.lapStartTime[i]) * 1000).toLong().coerceAtLeast(0)
             } else 0L
             l.sector1TimeMs = cars.sector1Ms[i]
@@ -104,17 +114,21 @@ class MockPacketBuilder(private val race: MockRace, private val sessionUid: Long
             l.safetyCarDelta = if (race.safetyCarStatus != 0) 1.5f else 0f
             l.carPosition = cars.position[i]
             l.currentLapNum = cars.lap[i]
-            l.pitStatus = cars.pitStatus[i]
+            l.pitStatus = if (inGarage) 2 else cars.pitStatus[i]
             l.numPitStops = cars.pitStops[i]
             l.sector = cars.sector[i]
-            l.currentLapInvalid = false
+            l.currentLapInvalid = cars.lapInvalid[i]
             l.penaltiesSeconds = cars.penaltiesSeconds[i]
             l.totalWarnings = cars.warnings[i]
             l.cornerCuttingWarnings = cars.warnings[i]
             l.numUnservedDriveThroughPens = 0
             l.numUnservedStopGoPens = 0
             l.gridPosition = cars.gridPosition[i]
-            l.driverStatus = if (cars.pitStatus[i] != 0) DRIVER_IN_LAP else DRIVER_ON_TRACK
+            l.driverStatus = when {
+                race.mode == MockSessionMode.QUALIFYING -> cars.driverStatus[i]
+                cars.pitStatus[i] != 0 -> DRIVER_IN_LAP
+                else -> DRIVER_ON_TRACK
+            }
             l.resultStatus = cars.resultStatus[i]
             l.pitLaneTimerActive = cars.pitStatus[i] != 0
             l.pitLaneTimeInLaneMs = cars.pitLaneTimeMs[i].coerceAtMost(65_535)
@@ -228,11 +242,11 @@ class MockPacketBuilder(private val race: MockRace, private val sessionUid: Long
         p.airTemperature = 24
         p.totalLaps = race.totalLaps
         p.trackLength = track.lengthM.roundToInt()
-        p.sessionType = SESSION_RACE
+        p.sessionType = race.mode.sessionType
         p.trackId = TRACK_SILVERSTONE
         p.formula = if (format == PacketFormat.F1_25_SEASON_2026) 13 else 0
-        p.sessionDuration = 7200
-        p.sessionTimeLeft = (7200 - race.sessionTime.toInt()).coerceAtLeast(0)
+        p.sessionDuration = race.sessionDurationS
+        p.sessionTimeLeft = (race.sessionDurationS - race.sessionTime.toInt()).coerceAtLeast(0)
         p.pitSpeedLimit = 80
         p.gamePaused = false
         p.isSpectating = false
@@ -341,6 +355,240 @@ class MockPacketBuilder(private val race: MockRace, private val sessionUid: Long
         return participants
     }
 
+    val damage = CarDamagePacket()
+    val history = SessionHistoryPacket()
+    val tyreSets = TyreSetsPacket()
+    val lapPositions = LapPositionsPacket()
+    val classification = FinalClassificationPacket()
+    val motionEx = MotionExPacket()
+    val telemetry2 = CarTelemetry2Packet()
+
+    fun buildDamage(): CarDamagePacket {
+        header(damage.header, PacketId.CAR_DAMAGE)
+        for (i in 0 until format.maxCars) {
+            val d = damage.cars[i]
+            val active = i < race.carCount
+            val wear = if (active) cars.tyreWear[i] * 100f else 0f
+            for (w in 0 until 4) {
+                d.tyresWear[w] = wear * WHEEL_WEAR_BIAS[w]
+                d.tyresDamage[w] = if (active) (wear * WHEEL_WEAR_BIAS[w] * 0.4f).roundToInt() else 0
+                d.brakesDamage[w] = if (active) (cars.lap[i] / 3).coerceAtMost(15) else 0
+                d.tyreBlisters[w] = if (active && wear > 60f) ((wear - 60f) * 0.8f).roundToInt() else 0
+            }
+            d.frontLeftWingDamage = if (active) cars.frontLeftWingDamage[i] else 0
+            d.frontRightWingDamage = 0
+            d.rearWingDamage = 0
+            d.floorDamage = if (active) cars.floorDamage[i] else 0
+            d.diffuserDamage = 0
+            d.sidepodDamage = 0
+            d.drsFault = false
+            d.ersFault = false
+            d.gearBoxDamage = if (active) (cars.engineWear[i] * 0.6f).roundToInt() else 0
+            d.engineDamage = if (active) (cars.engineWear[i] * 0.3f).roundToInt() else 0
+            val ew = if (active) cars.engineWear[i] else 0f
+            d.engineMguhWear = (ew * 1.1f).roundToInt().coerceAtMost(100)
+            d.engineEsWear = (ew * 0.9f).roundToInt().coerceAtMost(100)
+            d.engineCeWear = (ew * 0.8f).roundToInt().coerceAtMost(100)
+            d.engineIceWear = ew.roundToInt().coerceAtMost(100)
+            d.engineMgukWear = (ew * 1.2f).roundToInt().coerceAtMost(100)
+            d.engineTcWear = (ew * 0.95f).roundToInt().coerceAtMost(100)
+            d.engineBlown = false
+            d.engineSeized = false
+        }
+        return damage
+    }
+
+    fun buildHistory(car: Int): SessionHistoryPacket {
+        header(history.header, PacketId.SESSION_HISTORY)
+        val h = history
+        h.carIdx = car
+        val completed = cars.historyLaps[car]
+        val inProgress = race.phase == MockRace.Phase.RACING && cars.driverStatus[car] != MockRace.DRIVER_IN_GARAGE
+        h.numLaps = (completed + if (inProgress) 1 else 0).coerceAtMost(SessionHistoryPacket.MAX_LAPS)
+        var best = 0; var bestS1 = 0; var bestS2 = 0; var bestS3 = 0
+        for (l in 0 until SessionHistoryPacket.MAX_LAPS) {
+            val lap = h.laps[l]
+            if (l < completed) {
+                val k = car * MockCars.MAX_LAPS + l
+                lap.lapTimeMs = cars.historyLapMs[k]
+                lap.sector1Ms = cars.historyS1[k]
+                lap.sector2Ms = cars.historyS2[k]
+                lap.sector3Ms = cars.historyS3[k]
+                lap.validFlags = if (cars.historyValid[k]) 0x0F else 0x00
+                if (cars.historyValid[k]) {
+                    if (best == 0 || lap.lapTimeMs < cars.historyLapMs[car * MockCars.MAX_LAPS + best - 1]) best = l + 1
+                    if (bestS1 == 0 || lap.sector1Ms < cars.historyS1[car * MockCars.MAX_LAPS + bestS1 - 1]) bestS1 = l + 1
+                    if (bestS2 == 0 || lap.sector2Ms < cars.historyS2[car * MockCars.MAX_LAPS + bestS2 - 1]) bestS2 = l + 1
+                    if (bestS3 == 0 || lap.sector3Ms < cars.historyS3[car * MockCars.MAX_LAPS + bestS3 - 1]) bestS3 = l + 1
+                }
+            } else if (l == completed && inProgress) {
+                lap.lapTimeMs = 0
+                lap.sector1Ms = cars.sector1Ms[car]
+                lap.sector2Ms = cars.sector2Ms[car]
+                lap.sector3Ms = 0
+                lap.validFlags = if (cars.lapInvalid[car]) 0 else 0x0F
+            } else {
+                lap.lapTimeMs = 0; lap.sector1Ms = 0; lap.sector2Ms = 0; lap.sector3Ms = 0; lap.validFlags = 0
+            }
+        }
+        h.bestLapTimeLapNum = best
+        h.bestSector1LapNum = bestS1
+        h.bestSector2LapNum = bestS2
+        h.bestSector3LapNum = bestS3
+        h.numTyreStints = cars.stintCount[car]
+        for (s in 0 until SessionHistoryPacket.MAX_STINTS) {
+            val st = h.stints[s]
+            val k = car * MockCars.MAX_STINTS + s
+            if (s < cars.stintCount[car]) {
+                st.endLap = cars.stintEndLap[k]; st.visualCompound = cars.stintVisual[k]; st.actualCompound = cars.stintActual[k]
+            } else {
+                st.endLap = 0; st.visualCompound = 0; st.actualCompound = 0
+            }
+        }
+        return h
+    }
+
+    fun buildTyreSets(): TyreSetsPacket {
+        header(tyreSets.header, PacketId.TYRE_SETS)
+        val p = race.playerIndex
+        tyreSets.carIdx = p
+        val fittedVisual = cars.visualCompound[p]
+        var fittedIdx = -1
+        val usedSoft = (cars.stintCount[p] - 1).coerceAtLeast(0)
+        for (k in 0 until TyreSetsPacket.MAX_SETS) {
+            val t = tyreSets.sets[k]
+            val visual = SET_VISUAL[k]
+            t.visualCompound = visual
+            t.actualCompound = SET_ACTUAL[k]
+            val isFitted = fittedIdx < 0 && visual == fittedVisual
+            if (isFitted) fittedIdx = k
+            val used = !isFitted && visual == MockRace.VISUAL_SOFT && k < usedSoft
+            t.fitted = isFitted
+            t.available = !used
+            t.wearPercent = when {
+                isFitted -> (cars.tyreWear[p] * 100).roundToInt()
+                used -> 38
+                else -> 0
+            }
+            t.recommendedSession = if (visual == MockRace.VISUAL_SOFT) 5 else 15
+            t.usableLifeLaps = when (visual) { MockRace.VISUAL_SOFT -> 14; MockRace.VISUAL_MEDIUM -> 22; MockRace.VISUAL_HARD -> 32; else -> 28 }
+            t.lifeSpanLaps = (t.usableLifeLaps - if (isFitted) cars.tyreAge[p] else if (used) 5 else 0).coerceAtLeast(0)
+            t.lapDeltaTimeMs = SET_PACE_MS[k] - if (fittedIdx >= 0) SET_PACE_MS[fittedIdx] else SET_PACE_MS[0]
+        }
+        tyreSets.fittedIdx = fittedIdx.coerceAtLeast(0)
+        return tyreSets
+    }
+
+    fun buildLapPositions(): LapPositionsPacket {
+        header(lapPositions.header, PacketId.LAP_POSITIONS)
+        var maxLap = 0
+        for (i in 0 until race.carCount) if (cars.lap[i] > maxLap) maxLap = cars.lap[i]
+        maxLap = maxLap.coerceAtMost(MockCars.MAX_LAPS)
+        val start = (maxLap - LapPositionsPacket.MAX_LAPS).coerceAtLeast(0)
+        lapPositions.lapStart = start
+        lapPositions.numLaps = (maxLap - start).coerceAtLeast(0)
+        for (lap in 0 until LapPositionsPacket.MAX_LAPS) for (car in 0 until format.maxCars) {
+            val absolute = start + lap
+            lapPositions.positions[lap * com.dashwroom.f1telemetry.core.protocol.PacketFormat.MAX_CARS + car] =
+                if (car < race.carCount && lap < lapPositions.numLaps && absolute < cars.lap[car]) {
+                    cars.lapStartPosition[car * MockCars.MAX_LAPS + absolute]
+                } else 0
+        }
+        return lapPositions
+    }
+
+    fun buildFinalClassification(): FinalClassificationPacket {
+        header(classification.header, PacketId.FINAL_CLASSIFICATION)
+        classification.numClassified = race.carCount
+        for (i in 0 until format.maxCars) {
+            val r = classification.cars[i]
+            if (i >= race.carCount) {
+                r.position = 0; r.numLaps = 0; r.gridPosition = 0; r.points = 0; r.numPitStops = 0; r.resultStatus = 0
+                r.resultReason = 0; r.bestLapTimeMs = 0; r.totalRaceTimeSeconds = 0.0; r.penaltiesTimeSeconds = 0
+                r.numPenalties = 0; r.numTyreStints = 0
+                r.tyreStintsActual.fill(0); r.tyreStintsVisual.fill(0); r.tyreStintsEndLaps.fill(0)
+                continue
+            }
+            r.position = cars.position[i]
+            r.numLaps = cars.historyLaps[i]
+            r.gridPosition = cars.gridPosition[i]
+            r.points = POINTS.getOrElse(cars.position[i] - 1) { 0 }
+            r.numPitStops = cars.pitStops[i]
+            r.resultStatus = cars.resultStatus[i]
+            r.resultReason = if (cars.resultStatus[i] == MockRace.RESULT_RETIRED) 8 else 2
+            r.bestLapTimeMs = cars.bestLapMs[i]
+            var total = 0.0
+            for (l in 0 until cars.historyLaps[i]) total += cars.historyLapMs[i * MockCars.MAX_LAPS + l] / 1000.0
+            r.totalRaceTimeSeconds = total
+            r.penaltiesTimeSeconds = cars.penaltiesSeconds[i]
+            r.numPenalties = if (cars.penaltiesSeconds[i] > 0) 1 else 0
+            r.numTyreStints = cars.stintCount[i]
+            for (s in 0 until FinalClassificationPacket.MAX_STINTS) {
+                val k = i * MockCars.MAX_STINTS + s
+                val used = s < cars.stintCount[i]
+                r.tyreStintsActual[s] = if (used) cars.stintActual[k] else 0
+                r.tyreStintsVisual[s] = if (used) cars.stintVisual[k] else 0
+                r.tyreStintsEndLaps[s] = if (used) (if (cars.stintEndLap[k] == 255) cars.historyLaps[i] else cars.stintEndLap[k]) else 0
+            }
+        }
+        return classification
+    }
+
+    fun buildMotionEx(): MotionExPacket {
+        header(motionEx.header, PacketId.MOTION_EX)
+        val p = race.playerIndex
+        val m = motionEx
+        val v = cars.speed[p]
+        val idx = track.index(cars.lapDistance[p])
+        val k = track.signedCurvature[idx]
+        val a = cars.accel[p]
+        for (w in 0 until 4) {
+            val front = w >= 2
+            val left = w % 2 == 0
+            m.suspensionPosition[w] = 12f + v * 0.05f + (if (left) k else -k) * 400f
+            m.suspensionVelocity[w] = 0f
+            m.suspensionAcceleration[w] = 0f
+            m.wheelSpeed[w] = v
+            m.wheelSlipRatio[w] = if (front) (-a / 400f).coerceIn(-0.2f, 0.05f) else (a / 300f).coerceIn(-0.05f, 0.15f)
+            m.wheelSlipAngle[w] = (k * 3f).coerceIn(-0.12f, 0.12f)
+            m.wheelLatForce[w] = v * v * k * 180f
+            m.wheelLongForce[w] = a * 190f
+            m.wheelVertForce[w] = 1_900f + v * v * 0.35f
+            m.wheelCamber[w] = if (front) -0.05f else -0.03f
+            m.wheelCamberGain[w] = 0f
+        }
+        m.heightOfCogAboveGround = 0.28f
+        m.localVelocityX = 0f; m.localVelocityY = 0f; m.localVelocityZ = v
+        m.angularVelocityX = 0f; m.angularVelocityY = v * k; m.angularVelocityZ = 0f
+        m.angularAccelerationX = 0f; m.angularAccelerationY = 0f; m.angularAccelerationZ = 0f
+        m.frontWheelsAngle = (k * 4f).coerceIn(-0.4f, 0.4f)
+        m.frontAeroHeight = (0.045f - v * v * 0.0000030f).coerceAtLeast(0.012f)
+        m.rearAeroHeight = (0.085f - v * v * 0.0000040f).coerceAtLeast(0.030f)
+        m.frontRollAngle = k * 0.8f
+        m.rearRollAngle = k * 0.6f
+        m.chassisYaw = k * 0.5f
+        m.chassisPitch = -a * 0.0006f
+        return m
+    }
+
+    fun buildTelemetry2(): CarTelemetry2Packet {
+        header(telemetry2.header, PacketId.CAR_TELEMETRY_2)
+        for (i in 0 until format.maxCars) {
+            val t = telemetry2.cars[i]
+            val active = i < race.carCount
+            val inZone = active && track.inDrsZone(cars.lapDistance[i])
+            t.activeAeroMode = if (inZone && race.safetyCarStatus == 0) 1 else 0
+            t.activeAeroAvailable = active && race.drsEnabled
+            t.activeAeroActivationDistance = if (active) track.distanceToDrsZone(cars.lapDistance[i]).roundToInt().coerceIn(0, 65_535) else 0
+            t.overtakeAvailable = active && cars.drsAllowed[i]
+            t.overtakeActive = active && cars.drsOpen[i]
+            t.overtakeActivationDistance = if (active && !cars.drsAllowed[i]) 0 else t.activeAeroActivationDistance
+            t.regulations2026 = active
+            t.drivingWrongWay = false
+        }
+        return telemetry2
+    }
+
     private fun setName(p: ParticipantsPacket.Participant, name: String) {
         if (p.name == name) return
         val bytes = name.toByteArray(Charsets.UTF_8)
@@ -420,5 +668,15 @@ class MockPacketBuilder(private val race: MockRace, private val sessionUid: Long
         /** Speed (km/h) at which each gear is reached; index 0 = gear 1. */
         val GEAR_UP_KPH = floatArrayOf(0f, 95f, 130f, 165f, 200f, 235f, 268f, 298f)
         val WEEKEND = intArrayOf(1, 2, 3, 13, SESSION_RACE)
+        const val PIT_LANE_OFFSET_M = 18f
+
+        /** RL, RR, FL, FR — a clockwise lap works the left-front hardest. */
+        val WHEEL_WEAR_BIAS = floatArrayOf(0.90f, 0.86f, 1.08f, 0.97f)
+
+        // Tyre allocation: 8 soft, 3 medium, 2 hard, 4 intermediate, 3 wet.
+        val SET_VISUAL = intArrayOf(16, 16, 16, 16, 16, 16, 16, 16, 17, 17, 17, 18, 18, 7, 7, 7, 7, 8, 8, 8)
+        val SET_ACTUAL = intArrayOf(18, 18, 18, 18, 18, 18, 18, 18, 19, 19, 19, 20, 20, 7, 7, 7, 7, 8, 8, 8)
+        val SET_PACE_MS = intArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 450, 450, 450, 950, 950, 4200, 4200, 4200, 4200, 7800, 7800, 7800)
+        val POINTS = intArrayOf(25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
     }
 }

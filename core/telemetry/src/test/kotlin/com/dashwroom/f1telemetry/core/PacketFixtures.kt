@@ -2,7 +2,14 @@ package com.dashwroom.f1telemetry.core
 
 import com.dashwroom.f1telemetry.core.encode.PacketEncoder
 import com.dashwroom.f1telemetry.core.encode.StructWriter
+import com.dashwroom.f1telemetry.core.packet.CarDamagePacket
 import com.dashwroom.f1telemetry.core.packet.CarStatusPacket
+import com.dashwroom.f1telemetry.core.packet.CarTelemetry2Packet
+import com.dashwroom.f1telemetry.core.packet.FinalClassificationPacket
+import com.dashwroom.f1telemetry.core.packet.LapPositionsPacket
+import com.dashwroom.f1telemetry.core.packet.MotionExPacket
+import com.dashwroom.f1telemetry.core.packet.SessionHistoryPacket
+import com.dashwroom.f1telemetry.core.packet.TyreSetsPacket
 import com.dashwroom.f1telemetry.core.packet.CarTelemetryPacket
 import com.dashwroom.f1telemetry.core.packet.EventPacket
 import com.dashwroom.f1telemetry.core.packet.LapDataPacket
@@ -191,6 +198,80 @@ class PacketFixtures(seed: Int = 1234) {
         collisionVehicle1Idx = u8(); collisionVehicle2Idx = u8(); collisionSeverity = u8()
     }
 
+    fun finalClassification(format: PacketFormat) = FinalClassificationPacket().apply {
+        header(header, format, PacketId.FINAL_CLASSIFICATION)
+        numClassified = r.nextInt(0, numCars + 1)
+        for (i in 0 until numCars) with(cars[i]) {
+            position = u8(); numLaps = u8(); gridPosition = u8(); points = u8(); numPitStops = u8()
+            resultStatus = u8(); resultReason = u8(); bestLapTimeMs = u32(); totalRaceTimeSeconds = r.nextDouble() * 9000
+            penaltiesTimeSeconds = u8(); numPenalties = u8(); numTyreStints = r.nextInt(0, 9)
+            for (k in 0 until 8) { tyreStintsActual[k] = u8(); tyreStintsVisual[k] = u8(); tyreStintsEndLaps[k] = u8() }
+        }
+    }
+
+    fun damage(format: PacketFormat) = CarDamagePacket().apply {
+        header(header, format, PacketId.CAR_DAMAGE)
+        for (i in 0 until numCars) with(cars[i]) {
+            for (w in 0 until 4) { tyresWear[w] = unit() * 100; tyresDamage[w] = u8(); brakesDamage[w] = u8(); tyreBlisters[w] = u8() }
+            frontLeftWingDamage = u8(); frontRightWingDamage = u8(); rearWingDamage = u8(); floorDamage = u8()
+            diffuserDamage = u8(); sidepodDamage = u8(); drsFault = bool(); ersFault = bool(); gearBoxDamage = u8()
+            engineDamage = u8(); engineMguhWear = u8(); engineEsWear = u8(); engineCeWear = u8(); engineIceWear = u8()
+            engineMgukWear = u8(); engineTcWear = u8(); engineBlown = bool(); engineSeized = bool()
+        }
+    }
+
+    fun sessionHistory(format: PacketFormat) = SessionHistoryPacket().apply {
+        header(header, format, PacketId.SESSION_HISTORY)
+        carIdx = r.nextInt(0, format.maxCars); numLaps = r.nextInt(0, 101); numTyreStints = r.nextInt(0, 9)
+        bestLapTimeLapNum = u8(); bestSector1LapNum = u8(); bestSector2LapNum = u8(); bestSector3LapNum = u8()
+        for (lap in laps) {
+            lap.lapTimeMs = u32(); lap.sector1Ms = r.nextInt(0, 256 * 60_000); lap.sector2Ms = r.nextInt(0, 256 * 60_000)
+            lap.sector3Ms = r.nextInt(0, 256 * 60_000); lap.validFlags = u8()
+        }
+        for (st in stints) { st.endLap = u8(); st.actualCompound = u8(); st.visualCompound = u8() }
+    }
+
+    fun tyreSets(format: PacketFormat) = TyreSetsPacket().apply {
+        header(header, format, PacketId.TYRE_SETS)
+        carIdx = r.nextInt(0, format.maxCars)
+        for (t in sets) {
+            t.actualCompound = u8(); t.visualCompound = u8(); t.wearPercent = u8(); t.available = bool()
+            t.recommendedSession = u8(); t.lifeSpanLaps = u8(); t.usableLifeLaps = u8()
+            t.lapDeltaTimeMs = r.nextInt(-32768, 32768); t.fitted = bool()
+        }
+        fittedIdx = u8()
+    }
+
+    fun motionEx(format: PacketFormat) = MotionExPacket().apply {
+        header(header, format, PacketId.MOTION_EX)
+        for (w in 0 until 4) {
+            suspensionPosition[w] = f(); suspensionVelocity[w] = f(); suspensionAcceleration[w] = f(); wheelSpeed[w] = f()
+            wheelSlipRatio[w] = f(); wheelSlipAngle[w] = f(); wheelLatForce[w] = f(); wheelLongForce[w] = f()
+            wheelVertForce[w] = f(); wheelCamber[w] = f(); wheelCamberGain[w] = f()
+        }
+        heightOfCogAboveGround = f(); localVelocityX = f(); localVelocityY = f(); localVelocityZ = f()
+        angularVelocityX = f(); angularVelocityY = f(); angularVelocityZ = f(); angularAccelerationX = f()
+        angularAccelerationY = f(); angularAccelerationZ = f(); frontWheelsAngle = f(); frontAeroHeight = f()
+        rearAeroHeight = f(); frontRollAngle = f(); rearRollAngle = f(); chassisYaw = f(); chassisPitch = f()
+    }
+
+    fun lapPositions(format: PacketFormat) = LapPositionsPacket().apply {
+        header(header, format, PacketId.LAP_POSITIONS)
+        numLaps = r.nextInt(0, 51); lapStart = u8()
+        for (lap in 0 until LapPositionsPacket.MAX_LAPS) for (car in 0 until numCars) {
+            positions[lap * PacketFormat.MAX_CARS + car] = u8()
+        }
+    }
+
+    fun telemetry2(format: PacketFormat) = CarTelemetry2Packet().apply {
+        header(header, format, PacketId.CAR_TELEMETRY_2)
+        for (i in 0 until numCars) with(cars[i]) {
+            activeAeroMode = u8(); activeAeroAvailable = bool(); activeAeroActivationDistance = u16()
+            overtakeAvailable = bool(); overtakeActive = bool(); overtakeActivationDistance = u16()
+            regulations2026 = bool(); drivingWrongWay = bool()
+        }
+    }
+
     companion object {
         /** Includes multi-byte UTF-8 and a full 31-byte name to exercise the name field edges. */
         val NAMES = listOf("NORRIS", "Hülkenberg", "Pérez", "O'Sullivan", "ÉÈÊËÀÂ-ÆØÅ ok", "abcdefghijklmnopqrstuvwxyz01234")
@@ -223,6 +304,13 @@ fun encodeAny(packet: Any): ByteBuffer = encodePacket { w ->
         is ParticipantsPacket -> PacketEncoder.participants(w, packet)
         is CarTelemetryPacket -> PacketEncoder.carTelemetry(w, packet)
         is CarStatusPacket -> PacketEncoder.carStatus(w, packet)
+        is FinalClassificationPacket -> PacketEncoder.finalClassification(w, packet)
+        is CarDamagePacket -> PacketEncoder.carDamage(w, packet)
+        is SessionHistoryPacket -> PacketEncoder.sessionHistory(w, packet)
+        is TyreSetsPacket -> PacketEncoder.tyreSets(w, packet)
+        is MotionExPacket -> PacketEncoder.motionEx(w, packet)
+        is LapPositionsPacket -> PacketEncoder.lapPositions(w, packet)
+        is CarTelemetry2Packet -> PacketEncoder.carTelemetry2(w, packet)
         else -> error("unsupported $packet")
     }
 }
