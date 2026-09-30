@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Dashwroom</string>
+    <string name="notification_channel_name">Live telemetry</string>
+    <string name="notification_channel_description">Shows while Dashwroom is listening for F1 25 telemetry.</string>
+    <string name="notification_stop">Stop</string>
+</resources>
