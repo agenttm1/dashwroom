@@ -12,7 +12,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +61,11 @@ fun TyreBadge(visual: Int, modifier: Modifier = Modifier, size: Dp = 22.dp) {
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = (size.value * 0.45f).sp,
             fontWeight = FontWeight.Bold,
+            // Tight, centred line box so the letter sits in the middle of the ring at any size.
+            style = TextStyle(
+                lineHeight = (size.value * 0.45f).sp,
+                lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+            ),
         )
     }
 }

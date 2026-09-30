@@ -18,6 +18,7 @@ import com.dashwroom.f1telemetry.ui.screens.connect.ConnectWarning
 import com.dashwroom.f1telemetry.ui.screens.settings.SettingsContent
 import com.dashwroom.f1telemetry.ui.screens.settings.SettingsUiState
 import com.dashwroom.f1telemetry.ui.preview.PreviewData
+import com.dashwroom.f1telemetry.ui.screens.analysis.AnalysisContent
 import com.dashwroom.f1telemetry.ui.screens.car.CarContent
 import com.dashwroom.f1telemetry.ui.screens.car.CarUiState
 import com.dashwroom.f1telemetry.ui.screens.overview.OverviewContent
@@ -135,6 +136,14 @@ class ScreenshotTest {
     @Test
     @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
     fun car_tablet() = shoot("car_tablet") { CarContent(CarUiState(true, PreviewData.info(), PreviewData.car()), onOpenConnect = {}) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
+    fun analysis_phone() = shoot("analysis_phone") { AnalysisContent(PreviewData.analysis(), {}, {}, {}, {}, {}) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun analysis_tablet() = shoot("analysis_tablet") { AnalysisContent(PreviewData.analysis(), {}, {}, {}, {}, {}) }
 
     @androidx.compose.runtime.Composable
     private fun Qualifying() {

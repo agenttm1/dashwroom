@@ -5,7 +5,10 @@ import android.os.Process
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import androidx.room.Room
 import com.dashwroom.f1telemetry.core.TelemetryRepository
+import com.dashwroom.f1telemetry.data.history.HistoryDao
+import com.dashwroom.f1telemetry.data.history.HistoryDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -47,6 +50,14 @@ object AppModule {
         @ApplicationScope scope: CoroutineScope,
         @IngestDispatcher ingest: CoroutineDispatcher,
     ): TelemetryRepository = TelemetryRepository(scope, ingest)
+
+    @Provides
+    @Singleton
+    fun historyDatabase(@ApplicationContext context: Context): HistoryDatabase =
+        Room.databaseBuilder(context, HistoryDatabase::class.java, "history.db").build()
+
+    @Provides
+    fun historyDao(db: HistoryDatabase): HistoryDao = db.dao()
 
     @Provides
     @Singleton

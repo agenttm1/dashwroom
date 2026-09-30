@@ -170,4 +170,15 @@ object PreviewData {
             time = FloatArray(n) { i -> i * (106f + lap * 0.1f) / n },
         )
     }
+
+    fun analysis(): com.dashwroom.f1telemetry.ui.screens.analysis.AnalysisUiState {
+        val traces = traces()
+        val laps = history().drivers[PLAYER]!!.laps.map {
+            com.dashwroom.f1telemetry.ui.screens.analysis.LapSummary(it.lap, it.lapTimeMs, it.sectorsMs, it.valid, it.tyreVisual, hasTrace = it.lap >= 3)
+        }
+        return com.dashwroom.f1telemetry.ui.screens.analysis.AnalysisUiState(
+            sessions = persistentListOf(com.dashwroom.f1telemetry.ui.screens.analysis.SessionOption(1, "Current session", "Spa-Francorchamps · Race", live = true)),
+            sessionUid = 1, laps = laps.toImmutableList(), lapA = 6, lapB = 7, traceA = traces[0], traceB = traces[1],
+        )
+    }
 }

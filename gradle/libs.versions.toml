@@ -28,6 +28,7 @@ jmhPlugin = "0.7.3"
 robolectric = "4.17"
 roborazzi = "1.76.0"
 androidxTestCore = "1.7.0"
+room = "2.8.5"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -47,6 +48,11 @@ androidx-datastore-preferences = { module = "androidx.datastore:datastore-prefer
 androidx-window = { module = "androidx.window:window", version.ref = "window" }
 androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstaller", version.ref = "profileinstaller" }
 androidx-metrics-performance = { module = "androidx.metrics:metrics-performance", version.ref = "jankstats" }
+
+androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+androidx-room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }
@@ -92,3 +98,4 @@ hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 baselineprofile = { id = "androidx.baselineprofile", version.ref = "baselineprofilePlugin" }
 jmh = { id = "me.champeau.jmh", version.ref = "jmhPlugin" }
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
+room = { id = "androidx.room", version.ref = "room" }

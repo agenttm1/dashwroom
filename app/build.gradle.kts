@@ -4,8 +4,14 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.room)
     alias(libs.plugins.baselineprofile)
     alias(libs.plugins.roborazzi)
+}
+
+room {
+    // Exported schemas are committed so migrations can be tested against them.
+    schemaDirectory("$projectDir/schemas")
 }
 
 android {
@@ -105,6 +111,9 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     baselineProfile(project(":benchmark:macro"))
 
