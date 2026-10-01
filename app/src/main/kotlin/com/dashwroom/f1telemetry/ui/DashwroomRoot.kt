@@ -17,6 +17,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -33,6 +36,8 @@ import com.dashwroom.f1telemetry.ui.format.DisplayPrefs
 import com.dashwroom.f1telemetry.ui.format.LocalDisplayPrefs
 import com.dashwroom.f1telemetry.ui.navigation.AppScaffold
 import com.dashwroom.f1telemetry.ui.navigation.Destination
+import com.dashwroom.f1telemetry.ui.navigation.ImmersiveController
+import com.dashwroom.f1telemetry.ui.navigation.LocalImmersive
 import com.dashwroom.f1telemetry.ui.theme.DashwroomTheme
 
 /** App root: theme + density, keep-screen-on, per-screen orientation, debug HUD, JankStats. */
@@ -68,11 +73,25 @@ fun DashwroomRoot(
 
     KeepScreenOn(enabled = s.keepScreenOn && status.isReceiving)
 
+    // Full-screen driving mode: only on the Drive screen, and it ends when you leave it.
+    val immersive = remember { ImmersiveController() }
+    LaunchedEffect(current) { if (current != Destination.DRIVE) immersive.enabled = false }
+    val hideBars = immersive.enabled && current == Destination.DRIVE
+    LaunchedEffect(hideBars) {
+        val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        if (hideBars) {
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+
     val prefs = remember(s.speedUnit, s.temperatureUnit, s.deltaReference) {
         DisplayPrefs(s.speedUnit, s.temperatureUnit, s.deltaReference)
     }
     DashwroomTheme(themeMode = s.themeMode, density = s.uiDensity) {
-        CompositionLocalProvider(LocalDisplayPrefs provides prefs) {
+        CompositionLocalProvider(LocalDisplayPrefs provides prefs, LocalImmersive provides immersive) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                 AppScaffold(navController = navController, start = startDestination, status = status)
                 if (s.debugHud) {

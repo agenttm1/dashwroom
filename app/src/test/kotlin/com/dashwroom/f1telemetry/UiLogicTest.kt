@@ -5,7 +5,10 @@ import com.dashwroom.f1telemetry.data.settings.TemperatureUnit
 import com.dashwroom.f1telemetry.ui.format.DisplayPrefs
 import com.dashwroom.f1telemetry.ui.format.Fmt
 import com.dashwroom.f1telemetry.ui.hot.GlyphBuffer
+import com.dashwroom.f1telemetry.data.settings.DrivePreset
 import com.dashwroom.f1telemetry.ui.preview.PreviewData
+import com.dashwroom.f1telemetry.ui.screens.drive.DriveUiState
+import com.dashwroom.f1telemetry.ui.screens.drive.tilesFor
 import com.dashwroom.f1telemetry.ui.screens.race.PitAdvice
 import com.dashwroom.f1telemetry.ui.screens.race.PitStrategy
 import com.google.common.truth.Truth.assertThat
@@ -67,6 +70,29 @@ class UiLogicTest {
         assertThat(green.pitLossEstimated).isTrue()
         assertThat(sc.pitLossMs).isLessThan(green.pitLossMs)
         assertThat(sc.rejoinPosition).isLessThan(green.rejoinPosition)
+    }
+
+    @Test
+    fun `auto drive preset follows the session type`() {
+        val race = PreviewData.info(race = true)
+        assertThat(DriveUiState.resolve(DrivePreset.AUTO, race)).isEqualTo(DrivePreset.RACE)
+        assertThat(DriveUiState.resolve(DrivePreset.AUTO, race.copy(sessionType = 7))).isEqualTo(DrivePreset.QUALI)
+        assertThat(DriveUiState.resolve(DrivePreset.AUTO, race.copy(sessionType = 2))).isEqualTo(DrivePreset.QUALI)
+        assertThat(DriveUiState.resolve(DrivePreset.AUTO, race.copy(sessionType = 18))).isEqualTo(DrivePreset.TIME_TRIAL)
+        assertThat(DriveUiState.resolve(DrivePreset.AUTO, null)).isEqualTo(DrivePreset.RACE)
+        // An explicit choice always wins.
+        assertThat(DriveUiState.resolve(DrivePreset.MINIMAL, race)).isEqualTo(DrivePreset.MINIMAL)
+    }
+
+    @Test
+    fun `race drive tiles show position, gaps and fuel`() {
+        val tiles = tilesFor(PreviewData.drive(DrivePreset.RACE), com.dashwroom.f1telemetry.ui.theme.DashColors())
+        val byLabel = tiles.associate { it.label to it.value }
+        assertThat(byLabel["Position"]).isEqualTo("P6/20")
+        assertThat(byLabel["Lap"]).isEqualTo("9/20")
+        assertThat(byLabel["Ahead"]).startsWith("HAM +")
+        assertThat(byLabel["Fuel"]).isEqualTo("+0.6 L")
+        assertThat(tilesFor(PreviewData.drive(DrivePreset.MINIMAL), com.dashwroom.f1telemetry.ui.theme.DashColors())).isEmpty()
     }
 
     @Test

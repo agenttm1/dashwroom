@@ -21,6 +21,7 @@ data class AppSettings(
     val deltaReference: DeltaReference = DeltaReference.PERSONAL_BEST,
     val orientationLocks: Map<ScreenKey, OrientationLock> = emptyMap(),
     val debugHud: Boolean = false,
+    val drivePreset: DrivePreset = DrivePreset.AUTO,
 ) {
     fun orientationFor(screen: ScreenKey): OrientationLock = orientationLocks[screen] ?: screen.defaultOrientation
 
@@ -48,11 +49,24 @@ enum class DeltaReference(val label: String) {
     LAST_LAP("Last lap"),
 }
 
+/**
+ * What the Drive screen shows. AUTO follows the session type (race → RACE, qualifying and
+ * practice → QUALI, time trial → TIME_TRIAL).
+ */
+enum class DrivePreset(val label: String) {
+    AUTO("Auto"),
+    RACE("Race"),
+    QUALI("Quali"),
+    TIME_TRIAL("Time trial"),
+    MINIMAL("Minimal"),
+}
+
 enum class OrientationLock(val label: String) { UNLOCKED("Auto"), PORTRAIT("Portrait"), LANDSCAPE("Landscape") }
 
 /** Screens with a per-screen orientation preference. Race and Qualifying are landscape-first. */
 enum class ScreenKey(val label: String, val defaultOrientation: OrientationLock) {
     CONNECT("Connect", OrientationLock.UNLOCKED),
+    DRIVE("Drive", OrientationLock.UNLOCKED),
     OVERVIEW("Overview", OrientationLock.UNLOCKED),
     RACE("Race", OrientationLock.UNLOCKED),
     QUALIFYING("Qualifying", OrientationLock.UNLOCKED),

@@ -17,7 +17,9 @@ import com.dashwroom.f1telemetry.ui.screens.settings.SettingsContent
 import com.dashwroom.f1telemetry.ui.screens.settings.SettingsUiState
 import com.dashwroom.f1telemetry.ui.preview.PreviewData
 import com.dashwroom.f1telemetry.ui.screens.analysis.AnalysisContent
+import com.dashwroom.f1telemetry.data.settings.DrivePreset
 import com.dashwroom.f1telemetry.ui.screens.car.CarContent
+import com.dashwroom.f1telemetry.ui.screens.drive.DriveContent
 import com.dashwroom.f1telemetry.ui.screens.car.CarUiState
 import com.dashwroom.f1telemetry.ui.screens.overview.OverviewContent
 import com.dashwroom.f1telemetry.ui.screens.overview.OverviewUiState
@@ -144,6 +146,31 @@ class ScreenshotTest {
     @Test
     @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
     fun analysis_tablet() = shoot("analysis_tablet") { AnalysisContent(PreviewData.analysis(), {}, {}, {}, {}, {}) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun drive_race_tablet() = shoot("drive_race_tablet") { Drive(DrivePreset.RACE) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun drive_quali_tablet() = shoot("drive_quali_tablet") { Drive(DrivePreset.QUALI, race = false) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.MediumTablet)
+    fun drive_timetrial_tablet() = shoot("drive_timetrial_tablet") { Drive(DrivePreset.TIME_TRIAL, race = false) }
+
+    @Test
+    @Config(qualifiers = RobolectricDeviceQualifiers.Pixel7)
+    fun drive_race_phone() = shoot("drive_race_phone") { Drive(DrivePreset.AUTO) }
+
+    @Test
+    @Config(qualifiers = "w914dp-h411dp-normal-long-notround-any-land-420dpi-keyshidden-nonav")
+    fun drive_minimal_phone_landscape() = shoot("drive_minimal_phone_landscape") { Drive(DrivePreset.MINIMAL) }
+
+    @androidx.compose.runtime.Composable
+    private fun Drive(preset: DrivePreset, race: Boolean = true) {
+        DriveContent(PreviewData.drive(preset, race), PreviewData.hot(), PreviewData.frame(), {}, false, {}, {})
+    }
 
     @androidx.compose.runtime.Composable
     private fun Qualifying() {

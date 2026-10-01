@@ -181,4 +181,13 @@ object PreviewData {
             sessionUid = 1, laps = laps.toImmutableList(), lapA = 6, lapB = 7, traceA = traces[0], traceB = traces[1],
         )
     }
+
+    fun drive(preset: com.dashwroom.f1telemetry.data.settings.DrivePreset, race: Boolean = true): com.dashwroom.f1telemetry.ui.screens.drive.DriveUiState =
+        com.dashwroom.f1telemetry.ui.screens.drive.DriveUiState.build(
+            receiving = true,
+            preset = preset,
+            info = info(race),
+            race = race(race),
+            car = car(),
+        )
 }

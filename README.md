@@ -20,6 +20,8 @@ active aero), and ignores anything else gracefully.
 
 | | Phone | Tablet |
 |---|---|---|
+| **Drive** — what you look at while driving: rev lights, a huge gear (purple = shift), speed, clutch/brake/throttle bars, steering, throttle/brake trace, lap time and delta, DRS / lap-invalid flags. Presets: **Auto** (follows the session), **Race** (position, gaps, fuel, tyres, ERS), **Quali** (Δ PB + Δ session best, live sectors, time left), **Time trial** (big Δ PB, sectors, theoretical best), **Minimal**. Full-screen button hides all bars | <img src="app/screenshots/drive_race_phone.png" width="180"> | <img src="app/screenshots/drive_race_tablet.png" width="420"> |
+| **Drive › Quali / Time trial presets** | <img src="app/screenshots/drive_minimal_phone_landscape.png" width="180"> | <img src="app/screenshots/drive_quali_tablet.png" width="420"> |
 | **Overview** — session header, position and gaps, live delta bar, auto-scaled track map with every car, tyres, fuel, ERS, damage silhouette | <img src="app/screenshots/overview_phone.png" width="180"> | <img src="app/screenshots/overview_tablet.png" width="420"> |
 | **Race** — full-rate strip (rev LEDs, gear, speed, DRS, lap time, delta), timing tower (tyre + age, interval, gap, last/best, pit, penalties, DRS), race control, pit window / rejoin / undercut helper | <img src="app/screenshots/race_phone.png" width="180"> | <img src="app/screenshots/race_tablet.png" width="420"> |
 | **Race › driver** — sectors, stints, pit stops, lap times, position-by-lap chart (bottom sheet on phones, right pane on tablets) | | <img src="app/screenshots/race_tablet_driver_detail.png" width="420"> |
@@ -83,7 +85,7 @@ TelemetryRepository.status: StateFlow<TelemetryStatus> (4 Hz diagnostics, SEARCH
 
 ```bash
 ./gradlew assembleDebug                 # or assembleRelease (R8 + shrinking + baseline profile)
-./gradlew test                          # 113 JVM tests: parsers, pipeline, mock, replay, Room, Robolectric UI
+./gradlew test                          # 121 JVM tests: parsers, pipeline, mock, replay, Room, Robolectric UI
 ./gradlew :app:recordRoborazziDebug     # re-render app/screenshots/*.png
 ./gradlew :benchmark:jmh:jmh            # parser microbenchmarks (see docs/benchmarks/PHASE1.md)
 scripts/run-device-benchmarks.sh        # macrobenchmarks + baseline profile (needs a device)

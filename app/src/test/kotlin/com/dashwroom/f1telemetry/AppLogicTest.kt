@@ -47,9 +47,10 @@ class AppLogicTest {
     }
 
     @Test
-    fun `destinations resolve from launch keys and fill a five-item bottom bar`() {
+    fun `destinations resolve from launch keys and fill a six-item bottom bar`() {
         assertThat(Destination.fromKey("race")).isEqualTo(Destination.RACE)
         assertThat(Destination.fromKey("nope")).isNull()
-        assertThat(Destination.entries.count { it.primary }).isEqualTo(5)
+        assertThat(Destination.entries.count { it.primary }).isEqualTo(6)
+        assertThat(Destination.fromKey("drive")).isEqualTo(Destination.DRIVE)
     }
 }

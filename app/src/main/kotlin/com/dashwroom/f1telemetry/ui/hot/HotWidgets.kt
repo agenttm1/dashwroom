@@ -21,6 +21,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dashwroom.f1telemetry.core.model.PlayerCarState
@@ -45,7 +46,7 @@ fun HotTelemetry.delta(reference: DeltaReference): Int = when (reference) {
     DeltaReference.LAST_LAP -> deltaToLastLapMs
 }
 
-private val numberStyle = TextStyle(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
+internal val numberStyle = TextStyle(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
 
 /**
  * Horizontal delta bar: centre = level with the reference, left/green = ahead, right/red = behind,
@@ -58,15 +59,17 @@ fun HotDeltaBar(
     reference: DeltaReference,
     modifier: Modifier = Modifier,
     rangeMs: Int = 1_000,
+    height: Dp = 40.dp,
+    fontSize: Int = 20,
 ) {
     val colors = DashTheme.colors
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val onSurface = MaterialTheme.colorScheme.onSurface
-    val atlas = rememberGlyphAtlas(numberStyle.copy(fontSize = 20.sp))
+    val atlas = rememberGlyphAtlas(numberStyle.copy(fontSize = fontSize.sp))
     val buf = remember { GlyphBuffer() }
     Canvas(
-        modifier.fillMaxWidth().height(40.dp).clearAndSetSemantics { contentDescription = "Live delta to ${reference.label.lowercase()}" },
+        modifier.fillMaxWidth().height(height).clearAndSetSemantics { contentDescription = "Live delta to ${reference.label.lowercase()}" },
     ) {
         frame.value // draw-phase subscription
         val d = hot.delta(reference)
@@ -79,13 +82,13 @@ fun HotDeltaBar(
             val w = abs(frac) * mid
             val left = if (frac < 0) mid - w else mid
             drawRoundRect(color.copy(alpha = 0.85f), topLeft = Offset(left, 0f), size = Size(w, size.height), cornerRadius = r)
+            drawLine(onSurface.copy(alpha = 0.35f), Offset(mid, 0f), Offset(mid, size.height), strokeWidth = 2.dp.toPx())
             buf.clear().appendDelta(d)
             atlas.drawCentered(this, buf, mid, (size.height - atlas.height) / 2f, onSurface)
         } else {
             buf.clear().append('-').append('.').append('-').append('-').append('-')
             atlas.drawCentered(this, buf, mid, (size.height - atlas.height) / 2f, muted)
         }
-        drawLine(onSurface.copy(alpha = 0.6f), Offset(mid, 0f), Offset(mid, size.height), strokeWidth = 2.dp.toPx())
     }
 }
 
@@ -206,7 +209,7 @@ fun RaceTopStrip(
     }
 }
 
-private fun DrawScope.drawRevLeds(hot: HotTelemetry, colors: DashColors, off: Color, left: Float, top: Float, width: Float, height: Float) {
+internal fun DrawScope.drawRevLeds(hot: HotTelemetry, colors: DashColors, off: Color, left: Float, top: Float, width: Float, height: Float) {
     val count = 15
     val gap = width * 0.012f
     val w = (width - gap * (count - 1)) / count

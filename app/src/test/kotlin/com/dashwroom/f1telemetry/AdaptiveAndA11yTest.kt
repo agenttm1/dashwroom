@@ -27,7 +27,9 @@ import com.dashwroom.f1telemetry.ui.adaptive.PaneMode
 import com.dashwroom.f1telemetry.ui.adaptive.TwoPane
 import com.dashwroom.f1telemetry.ui.preview.PreviewData
 import com.dashwroom.f1telemetry.ui.screens.analysis.AnalysisContent
+import com.dashwroom.f1telemetry.data.settings.DrivePreset
 import com.dashwroom.f1telemetry.ui.screens.car.CarContent
+import com.dashwroom.f1telemetry.ui.screens.drive.DriveContent
 import com.dashwroom.f1telemetry.ui.screens.car.CarUiState
 import com.dashwroom.f1telemetry.ui.screens.qualifying.Knockout
 import com.dashwroom.f1telemetry.ui.screens.qualifying.QualifyingContent
@@ -151,6 +153,13 @@ class AdaptiveAndA11yTest {
     fun `analysis controls are labelled and large enough`() {
         set { AnalysisContent(PreviewData.analysis(), {}, {}, {}, {}, {}) }
         assertClickablesAccessible()
+    }
+
+    @Test
+    fun `drive controls are labelled and large enough`() {
+        set { DriveContent(PreviewData.drive(DrivePreset.QUALI), PreviewData.hot(), PreviewData.frame(), {}, false, {}, {}) }
+        assertClickablesAccessible()
+        assertThat(compose.onAllNodesWithDescription()).containsAtLeast("Gear", "Speed", "Pedal inputs: clutch, brake and throttle")
     }
 
     @Test

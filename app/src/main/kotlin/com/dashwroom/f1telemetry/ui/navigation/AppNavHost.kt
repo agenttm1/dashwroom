@@ -10,6 +10,7 @@ import androidx.navigation.compose.composable
 import com.dashwroom.f1telemetry.ui.screens.analysis.AnalysisScreen
 import com.dashwroom.f1telemetry.ui.screens.car.CarScreen
 import com.dashwroom.f1telemetry.ui.screens.connect.ConnectScreen
+import com.dashwroom.f1telemetry.ui.screens.drive.DriveScreen
 import com.dashwroom.f1telemetry.ui.screens.overview.OverviewScreen
 import com.dashwroom.f1telemetry.ui.screens.qualifying.QualifyingScreen
 import com.dashwroom.f1telemetry.ui.screens.race.RaceScreen
@@ -30,6 +31,7 @@ fun AppNavHost(
         enterTransition = { fadeIn() },
         exitTransition = { fadeOut() },
     ) {
+        composable<DriveRoute> { DriveScreen(onOpenConnect = openConnect) }
         composable<OverviewRoute> { OverviewScreen(onOpenConnect = openConnect) }
         composable<RaceRoute> { RaceScreen(onOpenConnect = openConnect) }
         composable<QualifyingRoute> { QualifyingScreen(onOpenConnect = openConnect) }

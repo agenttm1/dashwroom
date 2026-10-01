@@ -57,6 +57,9 @@ fun AppScaffold(
         sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) -> NavigationSuiteType.NavigationDrawer
         else -> NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
     }
+    // Full-screen driving: no navigation chrome at all while the Drive screen is immersive.
+    val immersive = LocalImmersive.current.enabled && current == Destination.DRIVE
+    val effectiveLayout = if (immersive) NavigationSuiteType.None else layoutType
     val compactBar = layoutType == NavigationSuiteType.NavigationBar
     val items = if (compactBar) Destination.entries.filter { it.primary } else Destination.entries
 
@@ -69,7 +72,7 @@ fun AppScaffold(
     }
 
     NavigationSuiteScaffold(
-        layoutType = layoutType,
+        layoutType = effectiveLayout,
         navigationSuiteItems = {
             items.forEach { d ->
                 item(
@@ -82,7 +85,7 @@ fun AppScaffold(
         },
     ) {
         Column(Modifier.fillMaxSize()) {
-            TopBar(
+            if (!immersive) TopBar(
                 title = current.label,
                 status = status,
                 showSettings = compactBar && current != Destination.SETTINGS,
@@ -91,7 +94,9 @@ fun AppScaffold(
             )
             // The navigation bar handles the bottom inset itself; with a rail or drawer nothing does,
             // so pad the content or it scrolls underneath the system taskbar / gesture area.
-            val contentInsets = if (compactBar) {
+            val contentInsets = if (immersive) {
+                WindowInsets.safeDrawing // system bars are hidden; this only keeps clear of cutouts
+            } else if (compactBar) {
                 WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
             } else {
                 WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.End)
