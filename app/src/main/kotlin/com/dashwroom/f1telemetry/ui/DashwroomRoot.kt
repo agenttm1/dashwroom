@@ -32,6 +32,7 @@ import com.dashwroom.f1telemetry.data.settings.SettingsRepository
 import com.dashwroom.f1telemetry.ui.components.KeepScreenOn
 import com.dashwroom.f1telemetry.ui.debug.DebugHud
 import com.dashwroom.f1telemetry.ui.debug.JankReporter
+import com.dashwroom.f1telemetry.ui.flags.FlagOverlay
 import com.dashwroom.f1telemetry.ui.format.DisplayPrefs
 import com.dashwroom.f1telemetry.ui.format.LocalDisplayPrefs
 import com.dashwroom.f1telemetry.ui.navigation.AppScaffold
@@ -50,6 +51,7 @@ fun DashwroomRoot(
 ) {
     val settings by settingsRepository.settings.collectAsStateWithLifecycle(initialValue = null)
     val status by repository.status.collectAsStateWithLifecycle()
+    val flags by repository.flags.collectAsStateWithLifecycle()
     val s = settings ?: return // DataStore loads in a few ms; the window background covers it.
 
     val navController = rememberNavController()
@@ -93,7 +95,9 @@ fun DashwroomRoot(
     DashwroomTheme(themeMode = s.themeMode, density = s.uiDensity) {
         CompositionLocalProvider(LocalDisplayPrefs provides prefs, LocalImmersive provides immersive) {
             Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                AppScaffold(navController = navController, start = startDestination, status = status)
+                AppScaffold(navController = navController, start = startDestination, status = status, flags = flags)
+                // Race-control flashes, edge glow and the blue-flag badge, over every screen.
+                FlagOverlay(flags = flags, flashes = s.flagFlashes && status.isReceiving)
                 if (s.debugHud) {
                     DebugHud(
                         status = status,

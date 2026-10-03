@@ -22,6 +22,8 @@ data class AppSettings(
     val orientationLocks: Map<ScreenKey, OrientationLock> = emptyMap(),
     val debugHud: Boolean = false,
     val drivePreset: DrivePreset = DrivePreset.AUTO,
+    /** Flash yellow/red/green flags and the safety car over the screen. */
+    val flagFlashes: Boolean = true,
 ) {
     fun orientationFor(screen: ScreenKey): OrientationLock = orientationLocks[screen] ?: screen.defaultOrientation
 

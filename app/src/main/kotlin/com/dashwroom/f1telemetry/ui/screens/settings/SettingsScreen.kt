@@ -91,6 +91,11 @@ internal fun SettingsContent(state: SettingsUiState, vm: SettingsViewModel?) {
                 Choice("Temperature", TemperatureUnit.entries, s.temperatureUnit, { it.label }) { vm?.setTemperatureUnit(it) }
                 Choice("Delta reference lap", DeltaReference.entries, s.deltaReference, { it.label }) { vm?.setDeltaReference(it) }
                 Toggle("Keep screen on", "While telemetry is being received.", s.keepScreenOn) { vm?.setKeepScreenOn(it) }
+                Toggle(
+                    "Flag alerts",
+                    "Flash yellow, red and green flags and the safety car over the screen. The safety car banner and blue flag badge always show.",
+                    s.flagFlashes,
+                ) { vm?.setFlagFlashes(it) }
             }
             DashCard(title = "Orientation lock") {
                 Text(

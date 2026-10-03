@@ -60,6 +60,7 @@ class SettingsViewModel @Inject constructor(
     fun setStartOnBoot(enabled: Boolean) = update { setStartOnBoot(enabled) }
     fun setDeltaReference(reference: DeltaReference) = update { setDeltaReference(reference) }
     fun setDebugHud(enabled: Boolean) = update { setDebugHud(enabled) }
+    fun setFlagFlashes(enabled: Boolean) = update { setFlagFlashes(enabled) }
     fun setOrientation(screen: ScreenKey, lock: OrientationLock) = update { setOrientationLock(screen, lock) }
     fun deleteRecording(path: String) = recordings.delete(path)
 }

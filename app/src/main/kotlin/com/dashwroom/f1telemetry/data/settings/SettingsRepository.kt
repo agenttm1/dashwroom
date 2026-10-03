@@ -39,6 +39,7 @@ class SettingsRepository @Inject constructor(
     suspend fun setDeltaReference(reference: DeltaReference) = edit { it[Keys.DELTA_REFERENCE] = reference.name }
     suspend fun setDebugHud(enabled: Boolean) = edit { it[Keys.DEBUG_HUD] = enabled }
     suspend fun setDrivePreset(preset: DrivePreset) = edit { it[Keys.DRIVE_PRESET] = preset.name }
+    suspend fun setFlagFlashes(enabled: Boolean) = edit { it[Keys.FLAG_FLASHES] = enabled }
     suspend fun setOrientationLock(screen: ScreenKey, lock: OrientationLock) =
         edit { it[orientationKey(screen)] = lock.name }
 
@@ -64,6 +65,7 @@ class SettingsRepository @Inject constructor(
         }.toMap(),
         debugHud = p[Keys.DEBUG_HUD] ?: false,
         drivePreset = enumOr(p[Keys.DRIVE_PRESET], DrivePreset.AUTO),
+        flagFlashes = p[Keys.FLAG_FLASHES] ?: true,
     )
 
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E = enumOrNull<E>(name) ?: default
@@ -88,5 +90,6 @@ class SettingsRepository @Inject constructor(
         val DELTA_REFERENCE = stringPreferencesKey("delta_reference")
         val DEBUG_HUD = booleanPreferencesKey("debug_hud")
         val DRIVE_PRESET = stringPreferencesKey("drive_preset")
+        val FLAG_FLASHES = booleanPreferencesKey("flag_flashes")
     }
 }

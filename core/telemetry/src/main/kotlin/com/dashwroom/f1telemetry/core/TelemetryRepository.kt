@@ -4,6 +4,7 @@ import com.dashwroom.f1telemetry.core.ingest.DatagramTap
 import com.dashwroom.f1telemetry.core.ingest.IngestStats
 import com.dashwroom.f1telemetry.core.ingest.TelemetryPipeline
 import com.dashwroom.f1telemetry.core.model.ConnectionState
+import com.dashwroom.f1telemetry.core.model.FlagState
 import com.dashwroom.f1telemetry.core.model.GameInfo
 import com.dashwroom.f1telemetry.core.model.PacketTypeStats
 import com.dashwroom.f1telemetry.core.model.HistoryState
@@ -61,6 +62,9 @@ class TelemetryRepository(
     val player: StateFlow<PlayerCarState> = store.player
     val history: StateFlow<HistoryState> = store.history
     val events: StateFlow<ImmutableList<RaceEvent>> = store.events
+
+    /** Flags, safety car and red flag as race control currently shows them to the player. */
+    val flags: StateFlow<FlagState> = store.flags
     val trackOutline: StateFlow<TrackOutline?> = store.trackOutline
 
     /** The player's completed-lap traces in the current session. */

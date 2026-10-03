@@ -49,6 +49,12 @@ class MockRace(
     private val safetyCarLap = (totalLaps * 0.35f).toInt().coerceAtLeast(2) + rng.nextInt(2)
     private var safetyCarEndLap = -1
     private var safetyCarReturning = false
+
+    /** Lap distance of the incident that causes the safety car; -1 when there is none. */
+    private var incidentS = -1f
+
+    /** Everyone sees a green flag until this session time after racing resumes. */
+    private var greenUntil = -1f
     private var drsReenableLap = 3
     private val penaltyLap = (totalLaps / 5).coerceAtLeast(2)
     private var penaltyIssued = false
@@ -74,6 +80,8 @@ class MockRace(
         finishedAt = -1f
         safetyCarEndLap = -1
         safetyCarReturning = false
+        incidentS = -1f
+        greenUntil = -1f
         drsReenableLap = 3
         penaltyIssued = false
         retiredCar = -1
@@ -504,6 +512,31 @@ class MockRace(
     private fun sortKey(car: Int): Float =
         if (cars.resultStatus[car] == RESULT_RETIRED) -1e9f + cars.totalDistance[car] else cars.rankKey[car]
 
+    /**
+     * The flag car [i] sees (Car Status `m_vehicleFiaFlags`): yellow under the safety car or when
+     * approaching the incident, green just past it and briefly after the restart, blue when a car
+     * a lap ahead is right behind.
+     */
+    fun fiaFlag(i: Int): Int {
+        val c = cars
+        if (c.resultStatus[i] == RESULT_RETIRED) return FLAG_NONE
+        if (safetyCarStatus != 0) return FLAG_YELLOW
+        val len = track.lengthM
+        if (incidentS >= 0f && phase == Phase.RACING) {
+            val toIncident = ((incidentS - c.lapDistance[i]) % len + len) % len
+            if (toIncident < YELLOW_ZONE_M) return FLAG_YELLOW
+            if (len - toIncident < GREEN_ZONE_M) return FLAG_GREEN
+        }
+        if (sessionTime < greenUntil) return FLAG_GREEN
+        for (j in 0 until carCount) {
+            if (j == i || c.resultStatus[j] == RESULT_RETIRED) continue
+            if (c.totalDistance[j] - c.totalDistance[i] < len * 0.9f) continue
+            val behind = ((c.lapDistance[i] - c.lapDistance[j]) % len + len) % len
+            if (behind in 0f..BLUE_FLAG_M) return FLAG_BLUE
+        }
+        return FLAG_NONE
+    }
+
     private fun raceControl() {
         if (phase != Phase.RACING) return
         val leader = cars.order[0]
@@ -513,6 +546,11 @@ class MockRace(
         if (!drsEnabled && safetyCarStatus == 0 && leaderLap >= drsReenableLap) {
             drsEnabled = true
             events.raise(EventCode.DRS_ENABLED)
+        }
+        // A local yellow first: an incident a quarter-lap ahead of the leader, a few seconds before
+        // race control neutralises the race.
+        if (incidentS < 0f && safetyCarEndLap < 0 && leaderLap == safetyCarLap && leaderS > track.lengthM * 0.15f) {
+            incidentS = (leaderS + track.lengthM * 0.25f) % track.lengthM
         }
         if (safetyCarStatus == 0 && safetyCarEndLap < 0 && leaderLap == safetyCarLap && leaderS > track.lengthM * 0.4f) {
             safetyCarStatus = 1
@@ -541,6 +579,8 @@ class MockRace(
                 val resume = events.raise(EventCode.SAFETY_CAR)
                 resume.safetyCarType = 1
                 resume.safetyCarEventType = 3
+                incidentS = -1f
+                greenUntil = sessionTime + GREEN_AFTER_RESUME_S
             }
         }
         if (!penaltyIssued && leaderLap == penaltyLap && leaderS > track.lengthM * 0.5f) {
@@ -579,6 +619,14 @@ class MockRace(
     }
 
     companion object {
+        const val FLAG_NONE = 0
+        const val FLAG_GREEN = 1
+        const val FLAG_BLUE = 2
+        const val FLAG_YELLOW = 3
+        const val YELLOW_ZONE_M = 700f
+        const val GREEN_ZONE_M = 250f
+        const val BLUE_FLAG_M = 120f
+        const val GREEN_AFTER_RESUME_S = 4f
         const val RESULT_ACTIVE = 2
         const val DRIVER_IN_GARAGE = 0
         const val DRIVER_FLYING = 1

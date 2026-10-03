@@ -22,6 +22,7 @@ active aero), and ignores anything else gracefully.
 |---|---|---|
 | **Drive** — what you look at while driving: rev lights, a huge gear (purple = shift), speed, clutch/brake/throttle bars, steering, throttle/brake trace, lap time and delta, DRS / lap-invalid flags. Presets: **Auto** (follows the session), **Race** (position, gaps, fuel, tyres, ERS), **Quali** (Δ PB + Δ session best, live sectors, time left), **Time trial** (big Δ PB, sectors, theoretical best), **Minimal**. Full-screen button hides all bars | <img src="app/screenshots/drive_race_phone.png" width="180"> | <img src="app/screenshots/drive_race_tablet.png" width="420"> |
 | **Drive** — Minimal preset (phone, landscape) and Quali preset (tablet) | <img src="app/screenshots/drive_minimal_phone_landscape.png" width="180"> | <img src="app/screenshots/drive_quali_tablet.png" width="420"> |
+| **Race control alerts** — on every screen: yellow, red and green flags and safety car starts flash over the screen with a big card (≤ 2 pulses/s); a yellow or red flag keeps a pulsing edge glow while it's out; SC / VSC / formation lap / red flag keep a broadcast-style banner with moving hazard stripes ("IN THIS LAP" when the SC comes in); a small blue-flag badge sits in the corner. Flashes can be turned off in Settings | <img src="app/screenshots/flag_blue_drive_phone.png" width="180"> | <img src="app/screenshots/flag_yellow_flash_tablet.png" width="420"><br><img src="app/screenshots/flag_safety_car_tablet.png" width="420"> |
 | **Overview** — session header, position and gaps, live delta bar, auto-scaled track map with every car, tyres, fuel, ERS, damage silhouette | <img src="app/screenshots/overview_phone.png" width="180"> | <img src="app/screenshots/overview_tablet.png" width="420"> |
 | **Race** — full-rate strip (rev LEDs, gear, speed, DRS, lap time, delta), timing tower (tyre + age, interval, gap, last/best, pit, penalties, DRS), race control, pit window / rejoin / undercut helper | <img src="app/screenshots/race_phone.png" width="180"> | <img src="app/screenshots/race_tablet.png" width="420"> |
 | **Race › driver** — sectors, stints, pit stops, lap times, position-by-lap chart (bottom sheet on phones, right pane on tablets) | | <img src="app/screenshots/race_tablet_driver_detail.png" width="420"> |
@@ -85,7 +86,7 @@ TelemetryRepository.status: StateFlow<TelemetryStatus> (4 Hz diagnostics, SEARCH
 
 ```bash
 ./gradlew assembleDebug                 # or assembleRelease (R8 + shrinking + baseline profile)
-./gradlew test                          # 121 JVM tests: parsers, pipeline, mock, replay, Room, Robolectric UI
+./gradlew test                          # 133 JVM tests: parsers, pipeline, mock, replay, Room, Robolectric UI
 ./gradlew :app:recordRoborazziDebug     # re-render app/screenshots/*.png
 ./gradlew :benchmark:jmh:jmh            # parser microbenchmarks (see docs/benchmarks/PHASE1.md)
 scripts/run-device-benchmarks.sh        # macrobenchmarks + baseline profile (needs a device)

@@ -2,7 +2,9 @@ package com.dashwroom.f1telemetry.replay
 
 import com.dashwroom.f1telemetry.core.ingest.IngestStats
 import com.dashwroom.f1telemetry.core.ingest.TelemetryPipeline
+import com.dashwroom.f1telemetry.core.model.FiaFlag
 import com.dashwroom.f1telemetry.core.model.RaceEventType
+import com.dashwroom.f1telemetry.core.model.SafetyCarMode
 import com.dashwroom.f1telemetry.core.protocol.PacketFormat
 import com.dashwroom.f1telemetry.core.state.HotTelemetry
 import com.dashwroom.f1telemetry.core.state.TelemetryStore
@@ -86,10 +88,23 @@ class DomainIntegrationTest {
     fun `a full race ends with a final classification and complete histories`() {
         val h = Harness(PacketFormat.F1_25, MockSessionMode.RACE, laps = 6)
         var seconds = 0
+        val flagsSeen = mutableSetOf<FiaFlag>()
+        val safetyCarModes = mutableSetOf<SafetyCarMode>()
+        var sawEnding = false
         while (h.store.history.value.finalClassification.isEmpty() && seconds < 15 * 60) {
             h.run(1)
             seconds++
+            val f = h.store.flags.value
+            flagsSeen += f.playerFlag
+            safetyCarModes += f.safetyCar
+            sawEnding = sawEnding || f.safetyCarEnding
         }
+        // The scripted incident shows a local yellow, then a safety car that announces its return,
+        // and racing resumes with a green.
+        assertThat(flagsSeen).containsAtLeast(FiaFlag.YELLOW, FiaFlag.GREEN)
+        assertThat(safetyCarModes).containsAtLeast(SafetyCarMode.FULL, SafetyCarMode.NONE)
+        assertThat(sawEnding).isTrue()
+        assertThat(h.store.flags.value.greenCount).isAtLeast(1)
         val final = h.store.history.value.finalClassification
         assertThat(final).hasSize(20)
         assertThat(final.first().position).isEqualTo(1)

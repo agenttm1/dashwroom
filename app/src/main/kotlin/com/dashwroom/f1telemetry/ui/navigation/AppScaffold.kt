@@ -34,7 +34,9 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.window.core.layout.WindowSizeClass
+import com.dashwroom.f1telemetry.core.model.FlagState
 import com.dashwroom.f1telemetry.core.model.TelemetryStatus
+import com.dashwroom.f1telemetry.ui.flags.RaceControlBanner
 import com.dashwroom.f1telemetry.ui.components.StatusPill
 
 /**
@@ -46,6 +48,7 @@ fun AppScaffold(
     navController: NavHostController,
     start: Destination,
     status: TelemetryStatus,
+    flags: FlagState = FlagState(),
 ) {
     val backStack by navController.currentBackStackEntryAsState()
     val current = Destination.entries.firstOrNull { d ->
@@ -91,6 +94,11 @@ fun AppScaffold(
                 showSettings = compactBar && current != Destination.SETTINGS,
                 onStatusClick = { navigate(Destination.CONNECT) },
                 onSettingsClick = { navigate(Destination.SETTINGS) },
+            )
+            // Safety car / VSC / red flag strip: stays on every screen while it applies.
+            RaceControlBanner(
+                flags,
+                if (immersive) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)) else Modifier,
             )
             // The navigation bar handles the bottom inset itself; with a rail or drawer nothing does,
             // so pad the content or it scrolls underneath the system taskbar / gesture area.

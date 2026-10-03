@@ -220,7 +220,7 @@ class MockPacketBuilder(private val race: MockRace, private val sessionUid: Long
             s.actualTyreCompound = cars.actualCompound[i]
             s.visualTyreCompound = cars.visualCompound[i]
             s.tyresAgeLaps = cars.tyreAge[i]
-            s.vehicleFiaFlags = if (race.safetyCarStatus != 0) FLAG_YELLOW else FLAG_NONE
+            s.vehicleFiaFlags = race.fiaFlag(i)
             s.enginePowerIce = if (cars.speed[i] > 1f) 560_000f else 0f
             s.enginePowerMguk = if (cars.speed[i] > MockTrack.V_MAX * 0.75f) 120_000f else 0f
             s.ersStoreEnergy = cars.ersStore[i]

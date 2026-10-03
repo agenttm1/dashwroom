@@ -1,5 +1,6 @@
 package com.dashwroom.f1telemetry.core.state
 
+import com.dashwroom.f1telemetry.core.model.FlagState
 import com.dashwroom.f1telemetry.core.model.HistoryState
 import com.dashwroom.f1telemetry.core.model.LapTrace
 import com.dashwroom.f1telemetry.core.model.PlayerCarState
@@ -44,12 +45,14 @@ class TelemetryStore(val hot: HotTelemetry) {
     private val outlineBuilder = TrackOutlineBuilder(cars)
     private val recorder = PlayerLapRecorder(cars)
     private val eventLog = EventLog(roster, cars)
+    private val flagTracker = FlagTracker()
 
     val session: StateFlow<SessionState> = builder.session
     val race: StateFlow<RaceState> = builder.race
     val player: StateFlow<PlayerCarState> = builder.player
     val history: StateFlow<HistoryState> = builder.history
     val events: StateFlow<ImmutableList<RaceEvent>> = eventLog.events
+    val flags: StateFlow<FlagState> = flagTracker.state
     val trackOutline: StateFlow<TrackOutline?> = outlineBuilder.outline
     val laps: StateFlow<ImmutableList<LapTrace>> = recorder.laps
     val completedLaps: SharedFlow<LapTrace> = recorder.completed
@@ -88,6 +91,7 @@ class TelemetryStore(val hot: HotTelemetry) {
             }
             is SessionPacket -> {
                 cars.trackLengthM = packet.trackLength.toFloat()
+                flagTracker.onSession(packet)
                 stash.stash(packet.packetId, 0, buffer, length)
                 force = true
             }
@@ -96,7 +100,10 @@ class TelemetryStore(val hot: HotTelemetry) {
                 stash.stash(packet.packetId, 0, buffer, length)
                 force = true
             }
-            is EventPacket -> eventLog.apply(packet, player)
+            is EventPacket -> {
+                eventLog.apply(packet, player)
+                flagTracker.onEvent(packet)
+            }
             is CarDamagePacket, is MotionExPacket, is LapPositionsPacket ->
                 stash.stash(packet.packetId, 0, buffer, length)
             is SessionHistoryPacket -> stash.stash(packet.packetId, packet.carIdx, buffer, length)
@@ -142,6 +149,7 @@ class TelemetryStore(val hot: HotTelemetry) {
         outlineBuilder.reset()
         recorder.reset()
         eventLog.reset()
+        flagTracker.reset()
     }
 
     private fun applyTelemetry(p: CarTelemetryPacket) {
@@ -165,6 +173,7 @@ class TelemetryStore(val hot: HotTelemetry) {
         val i = p.header.playerCarIndex
         if (i >= p.numCars) return
         val c = p.cars[i]
+        flagTracker.onPlayerFlag(c.vehicleFiaFlags, p.header.sessionTime)
         hot.maxRpm = c.maxRpm
         hot.idleRpm = c.idleRpm
         hot.maxGears = c.maxGears
